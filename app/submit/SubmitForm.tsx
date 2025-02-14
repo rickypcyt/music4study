@@ -3,27 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/app/utils/supabase/client';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Toaster } from '@/components/ui/toaster';
 import { useToast } from '@/hooks/use-toast';
 
-export default function SubmitPage() {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-100">
-      <h1 className="text-3xl font-bold mb-6 text-center">Subir Enlace de Música</h1>
-      <Card className="p-6 shadow-lg w-full max-w-md">
-        <SubmitForm />
-      </Card>
-      <Toaster />
-    </div>
-  );
-}
-
-function SubmitForm() {
+export default function SubmitForm() {
   const { toast } = useToast();
   const router = useRouter();
   const [url, setUrl] = useState('');
