@@ -1,5 +1,7 @@
-import { CustomButton, CustomInput } from '@/components/ui';
-import { createClient } from '@/utils/supabase/server';
+import { CustomButton } from './components/ui/button';
+import { CustomInput } from './components/ui/input';
+
+import { createClient } from './utils/supabase/server';
 import { cookies } from 'next/headers';
 
 export default function SubmitPage() {

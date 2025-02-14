@@ -1,4 +1,4 @@
-import { Input } from '@shadcn/ui';
+import { Input } from 'shadcn/ui';
 
 export const CustomInput = ({ placeholder }: { placeholder: string }) => {
   return (

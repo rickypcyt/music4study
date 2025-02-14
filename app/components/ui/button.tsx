@@ -1,4 +1,4 @@
-import { Button } from '@shadcn/ui';
+import { Button } from 'shadcn/ui';
 
 export const CustomButton = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => {
   return (
