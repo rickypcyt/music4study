@@ -116,17 +116,17 @@ function SubmitForm() {
       });
       return;
     }
-
+  
     setLoading(true);
     const supabase = createClient();
-
+  
     try {
       const { error } = await supabase
         .from('links')
         .insert([formData]);
-
+  
       if (error) throw error;
-
+  
       toast({
         title: 'Success!',
         description: 'Your music has been uploaded successfully.',

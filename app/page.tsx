@@ -2,10 +2,13 @@
 import { createClient } from '@/app/utils/supabase/server';
 import MusicCard from '@/components/ui/MusicCard';
 import Navbar from '@/components/ui/Navbar';
+import { Cookie } from 'next/font/google';
+import { cookies } from 'next/headers';
 
 export default async function Home() {
-  const supabase = createClient();
-  const { data: links } = await (await supabase).from('links').select('*');
+  const cookieStore = await cookies()
+  const supabase = await createClient(cookieStore);
+  const { data: links } = await supabase.from('links').select();
 
   return (
     <div className="bg-black min-h-screen text-white">

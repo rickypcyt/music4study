@@ -94,7 +94,7 @@ export default function Navbar() {
       {showSubmitForm && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center transition-all">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-lg max-w-xl w-full mx-4 shadow-xl">
-            <SubmitForm onClose={() => setShowSubmitForm(false)} />
+            <SubmitForm />
           </div>
         </div>
       )}
