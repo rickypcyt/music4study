@@ -1,4 +1,5 @@
 'use client';
+
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import SubmitForm from '@/app/submit/SubmitForm';
@@ -12,7 +13,7 @@ import {
 
 export default function Navbar() {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
-  
+
   const navLinks = [
     { href: '/', icon: <Home className="h-4 w-4" />, label: 'Home' },
     // Add more nav links here as needed
@@ -34,6 +35,10 @@ export default function Navbar() {
       ))}
     </>
   );
+
+  const handleCloseSubmitForm = () => {
+    setShowSubmitForm(false);
+  };
 
   return (
     <>
@@ -94,7 +99,7 @@ export default function Navbar() {
       {showSubmitForm && (
         <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center transition-all">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-lg max-w-xl w-full mx-4 shadow-xl">
-            <SubmitForm />
+            <SubmitForm onClose={handleCloseSubmitForm} />
           </div>
         </div>
       )}
