@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const createClient = (request: NextRequest) => {
+  // Initialize response object
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
@@ -15,15 +16,23 @@ export const createClient = (request: NextRequest) => {
       cookies: {
         getAll: () => request.cookies.getAll(),
         setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) => {
-            request.cookies.set(name, value); // ✅ Solo dos parámetros
-          });
+          try {
+            // Set cookies from the request
+            cookiesToSet.forEach(({ name, value }) => {
+              request.cookies.set(name, value); // Use RequestCookie object directly
+            });
 
-          supabaseResponse = NextResponse.next({ request });
+            // Ensure cookies are added to the response
+            cookiesToSet.forEach(({ name, value }) => {
+              supabaseResponse.cookies.set(name, value); // Use name and value pair
+            });
 
-          cookiesToSet.forEach(({ name, value }) => {
-            supabaseResponse.cookies.set({ name, value }); // ✅ Usando objeto `RequestCookie`
-          });
+            // Reassign response after setting cookies
+            supabaseResponse = NextResponse.next({ request });
+
+          } catch (error) {
+            console.error("Error setting cookies:", error); // Log errors for debugging
+          }
         },
       },
     }
