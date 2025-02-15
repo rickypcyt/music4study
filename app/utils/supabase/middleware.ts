@@ -1,13 +1,7 @@
-
-import { createServerClient} from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { type CookieOptions } from "@supabase/ssr";
-
-
 export const createClient = (request: NextRequest) => {
-  // Create an unmodified response
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
@@ -19,22 +13,21 @@ export const createClient = (request: NextRequest) => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
+        getAll: () => request.cookies.getAll(),
+        setAll: (cookiesToSet) => {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value); // ✅ Solo dos parámetros
+          });
+
+          supabaseResponse = NextResponse.next({ request });
+
+          cookiesToSet.forEach(({ name, value }) => {
+            supabaseResponse.cookies.set({ name, value }); // ✅ Usando objeto `RequestCookie`
+          });
         },
       },
-    },
+    }
   );
 
-  return supabaseResponse
+  return { supabase, response: supabaseResponse };
 };
-
