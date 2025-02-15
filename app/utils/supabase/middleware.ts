@@ -1,6 +1,10 @@
 
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient} from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { type CookieOptions } from "@supabase/ssr";
+
 
 export const createClient = (request: NextRequest) => {
   // Create an unmodified response
