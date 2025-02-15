@@ -1,13 +1,9 @@
-// app/page.tsx
 import { createClient } from '@/app/utils/supabase/server';
 import MusicCard from '@/components/ui/MusicCard';
 import Navbar from '@/components/ui/Navbar';
-import { Cookie } from 'next/font/google';
-import { cookies } from 'next/headers';
 
 export default async function Home() {
-  const cookieStore = await cookies()
-  const supabase = await createClient(cookieStore);
+  const supabase = await createClient();
   const { data: links } = await supabase.from('links').select();
 
   return (

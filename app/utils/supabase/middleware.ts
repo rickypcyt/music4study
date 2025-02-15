@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createServerClient , CookieOptions} from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export const createClient = (request: NextRequest) => {

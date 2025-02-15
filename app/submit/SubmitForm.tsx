@@ -111,6 +111,7 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
 
             onClose(); // Changed setIsOpen(false) to onClose()
             router.push('/');
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (error) {
             toast({
                 title: 'Upload Failed',
@@ -139,7 +140,7 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
                     <X className="h-4 w-4" />
                 </Button>
             </div>
-            <Alert variant="warning" className="bg-yellow-950/20 border-yellow-600/20 text-yellow-200">
+            <Alert variant="default" className="bg-yellow-950/20 border-yellow-600/20 text-yellow-200">
                 <AlertTriangle className="h-4 w-4 text-yellow-500" />
                 <AlertTitle>Important</AlertTitle>
                 <AlertDescription className="text-yellow-200/80">
