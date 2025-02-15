@@ -54,7 +54,7 @@ export default function MusicCard({ link }: MusicCardProps) {
       case 'soundcloud':
         return (
           <iframe
-            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(link.url)}&color=%23333333&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+            src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(link.url)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
             className="w-full h-full rounded-lg"
             allow="autoplay"
             title="SoundCloud Embed"
