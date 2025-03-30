@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
-import InitialLoadingScreen from '@/components/InitialLoadingScreen';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -46,9 +45,7 @@ export default function Home() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>('home');
-  const [currentPage, setCurrentPage] = useState(1);
   const [links, setLinks] = useState<Link[]>([]);
-  const [totalPages, setTotalPages] = useState(1);
   const [genres, setGenres] = useState<{ value: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,16 +68,11 @@ export default function Home() {
   });
   const allLinksRef = useRef<Link[]>([]);
   const isInitialLoadRef = useRef(true);
+  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const selectedGenre = searchParams.get('genre');
-  const selectedPage = searchParams.get('page');
-
-  // Update current page when URL changes
-  useEffect(() => {
-    if (selectedPage) {
-      setCurrentPage(parseInt(selectedPage));
-    }
-  }, [selectedPage]);
 
   // Update current sort when URL changes
   useEffect(() => {
@@ -156,24 +148,16 @@ export default function Home() {
     fetchInitialData();
   }, []);
 
-  // Update displayed links when page, genre, or sort changes
+  // Update displayed links when genre or sort changes
   useEffect(() => {
     if (isInitialLoadRef.current) return;
     updateDisplayedLinks(allLinksRef.current);
-  }, [currentPage, selectedGenre, currentSort]);
-
-  // Fetch combinations when in combinations view
-  useEffect(() => {
-    if (currentView === 'combinations') {
-      fetchCombinations();
-    }
-  }, [currentView]);
+  }, [selectedGenre, currentSort]);
 
   const updateDisplayedLinks = (allLinks: Link[]) => {
     console.log('Updating displayed links...');
     console.log('All links:', allLinks.length);
     console.log('Selected genre:', selectedGenre);
-    console.log('Current page:', currentPage);
     console.log('Current sort:', currentSort);
 
     let filteredLinks = [...allLinks];
@@ -198,17 +182,41 @@ export default function Home() {
       }
     });
 
-    // Calculate pagination
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const paginatedLinks = filteredLinks.slice(start, end);
-    
-    console.log('Paginated links:', paginatedLinks.length);
-    
-    // Update state
-    setLinks(paginatedLinks);
-    setTotalPages(Math.ceil(filteredLinks.length / ITEMS_PER_PAGE));
+    // Update state with all filtered links
+    setLinks(filteredLinks);
   };
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && !isLoadingMore && links.length > displayedCount) {
+          setIsLoadingMore(true);
+          setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
+          setIsLoadingMore(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [links.length, displayedCount, isLoadingMore]);
+
+  // Fetch combinations when in combinations view
+  useEffect(() => {
+    if (currentView === 'combinations') {
+      fetchCombinations();
+    }
+  }, [currentView]);
 
   const fetchCombinations = async () => {
     try {
@@ -281,7 +289,6 @@ export default function Home() {
 
   const handleGenreClick = (genre: string) => {
     setCurrentView('home');
-    setCurrentPage(1);
     router.push(`/?genre=${encodeURIComponent(genre)}`);
   };
 
@@ -305,16 +312,9 @@ export default function Home() {
   const handleSortChange = (sortBy: string) => {
     setCurrentSort(sortBy);
     localStorage.setItem('sort', sortBy);
-    setCurrentPage(1); // Reset to first page when sorting changes
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set('sort', sortBy);
-    newParams.set('page', '1');
     router.push(`/?${newParams.toString()}`);
-  };
-
-  // Handle initial loading screen completion
-  const handleLoadingComplete = () => {
-    setShowInitialLoading(false);
   };
 
   if (error) {
@@ -336,10 +336,6 @@ export default function Home() {
 
   return (
     <div className="app-container">
-      {showInitialLoading && (
-        <InitialLoadingScreen onLoadingComplete={handleLoadingComplete} />
-      )}
-      
       <Navbar 
         currentView={currentView}
         onGenresClick={handleGenresClick}
@@ -352,7 +348,7 @@ export default function Home() {
         currentTheme={currentTheme}
       />
       
-      <main className={`w-full px-2 sm:px-4 lg:px-3 py-6 ${showInitialLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-500'}`}>
+      <main className="w-full px-2 sm:px-4 lg:px-3 py-6">
         {currentView === 'genres' ? (
           <>
             <div className="text-center mb-1">
@@ -419,37 +415,29 @@ export default function Home() {
             )}
 
             {loading ? (
-              <LoadingCards />
-            ) : links.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {links.map((link) => (
-                  <LinkCard key={link.id} link={link} />
-                ))}
+              <div className="min-h-[60vh] flex items-center justify-center">
+                <LoadingCards />
               </div>
+            ) : links.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {links.slice(0, displayedCount).map((link) => (
+                    <LinkCard key={link.id} link={link} />
+                  ))}
+                </div>
+                {links.length > displayedCount && (
+                  <div ref={loadMoreRef} className="flex justify-center mt-8">
+                    {isLoadingMore ? (
+                      <LoadingCards />
+                    ) : (
+                      <div className="text-foreground/70">Loading more...</div>
+                    )}
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center text-foreground/70 py-12">
                 No tracks found. Be the first to add one!
-              </div>
-            )}
-
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-8">
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => {
-                      setCurrentPage(page);
-                      router.push(`/?page=${page}${selectedGenre ? `&genre=${encodeURIComponent(selectedGenre)}` : ''}`);
-                    }}
-                    className={`px-4 py-2 rounded ${
-                      page === currentPage
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background/10 text-foreground hover:bg-background/20'
-                    } transition-colors`}
-                  >
-                    {page}
-                  </button>
-                ))}
               </div>
             )}
           </>
