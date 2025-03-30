@@ -1,11 +1,8 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardDescription } from '@/components/ui/card';
-import { renderEmbed } from '@/lib/embeds';
 import Navbar from '@/components/ui/Navbar';
-import { Suspense, useEffect, useState, useRef } from 'react';
-import { cache } from '@/lib/cache';
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/LoadingCards';
 import GenreCloud from '@/components/ui/GenreCloud';
@@ -14,7 +11,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import SubmitForm from './submit/SubmitForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -40,7 +36,7 @@ interface CombinationWithLinks extends Combination {
   links: Link[];
 }
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -53,7 +49,6 @@ export default function Home() {
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
-  const [showInitialLoading, setShowInitialLoading] = useState(true);
   const [currentSort, setCurrentSort] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('sort') || searchParams.get('sort') || 'date';
@@ -73,6 +68,38 @@ export default function Home() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const selectedGenre = searchParams.get('genre');
+
+  const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
+    console.log('Updating displayed links...');
+    console.log('All links:', allLinks.length);
+    console.log('Selected genre:', selectedGenre);
+    console.log('Current sort:', currentSort);
+
+    let filteredLinks = [...allLinks];
+
+    // Apply genre filter if selected
+    if (selectedGenre) {
+      filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
+      console.log('Filtered links by genre:', filteredLinks.length);
+    }
+
+    // Apply sorting
+    filteredLinks.sort((a, b) => {
+      switch (currentSort) {
+        case 'date':
+          return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
+        case 'genre':
+          return a.genre.localeCompare(b.genre);
+        case 'username':
+          return a.username.localeCompare(b.username);
+        default:
+          return 0;
+      }
+    });
+
+    // Update state with all filtered links
+    setLinks(filteredLinks);
+  }, [selectedGenre, currentSort]);
 
   // Update current sort when URL changes
   useEffect(() => {
@@ -146,79 +173,9 @@ export default function Home() {
     };
 
     fetchInitialData();
-  }, []);
+  }, [updateDisplayedLinks]);
 
-  // Update displayed links when genre or sort changes
-  useEffect(() => {
-    if (isInitialLoadRef.current) return;
-    updateDisplayedLinks(allLinksRef.current);
-  }, [selectedGenre, currentSort]);
-
-  const updateDisplayedLinks = (allLinks: Link[]) => {
-    console.log('Updating displayed links...');
-    console.log('All links:', allLinks.length);
-    console.log('Selected genre:', selectedGenre);
-    console.log('Current sort:', currentSort);
-
-    let filteredLinks = [...allLinks];
-
-    // Apply genre filter if selected
-    if (selectedGenre) {
-      filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
-      console.log('Filtered links by genre:', filteredLinks.length);
-    }
-
-    // Apply sorting
-    filteredLinks.sort((a, b) => {
-      switch (currentSort) {
-        case 'date':
-          return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
-        case 'genre':
-          return a.genre.localeCompare(b.genre);
-        case 'username':
-          return a.username.localeCompare(b.username);
-        default:
-          return 0;
-      }
-    });
-
-    // Update state with all filtered links
-    setLinks(filteredLinks);
-  };
-
-  // Set up intersection observer for infinite scroll
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting && !isLoadingMore && links.length > displayedCount) {
-          setIsLoadingMore(true);
-          setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
-          setIsLoadingMore(false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => {
-      if (loadMoreRef.current) {
-        observer.unobserve(loadMoreRef.current);
-      }
-    };
-  }, [links.length, displayedCount, isLoadingMore]);
-
-  // Fetch combinations when in combinations view
-  useEffect(() => {
-    if (currentView === 'combinations') {
-      fetchCombinations();
-    }
-  }, [currentView]);
-
-  const fetchCombinations = async () => {
+  const fetchCombinations = useCallback(async () => {
     try {
       const { data: combinationsData, error: combinationsError } = await supabase
         .from('combinations')
@@ -254,7 +211,46 @@ export default function Home() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  // Update displayed links when genre or sort changes
+  useEffect(() => {
+    if (isInitialLoadRef.current) return;
+    updateDisplayedLinks(allLinksRef.current);
+  }, [selectedGenre, currentSort, updateDisplayedLinks]);
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    const currentRef = loadMoreRef.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && !isLoadingMore && links.length > displayedCount) {
+          setIsLoadingMore(true);
+          setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
+          setIsLoadingMore(false);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [links.length, displayedCount, isLoadingMore]);
+
+  // Fetch combinations when in combinations view
+  useEffect(() => {
+    if (currentView === 'combinations') {
+      fetchCombinations();
+    }
+  }, [currentView, fetchCombinations]);
 
   const handleCreateCombination = async () => {
     if (!newCombinationName.trim()) return;
@@ -473,5 +469,13 @@ export default function Home() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<LoadingCards />}>
+      <HomeContent />
+    </Suspense>
   );
 }

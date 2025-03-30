@@ -1,9 +1,8 @@
 'use client';
 
 import { Button } from './button';
-import { Music2, Home, Tags, Layers, ArrowUpDown, X, Sun } from 'lucide-react';
+import { Home, Tags, Layers, ArrowUpDown, Sun } from 'lucide-react';
 import { useState } from 'react';
-import ThemeSelector from './ThemeSelector';
 import {
   Dialog,
   DialogContent,

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type FieldError = string | null;
 
@@ -136,12 +137,21 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                 </div>
 
                 <div>
-                    <Input
-                        placeholder="Genre"
+                    <Select
                         value={formData.genre}
-                        onChange={e => handleChange('genre', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.genre ? 'border-red-500' : ''}`}
-                    />
+                        onValueChange={(value) => handleChange('genre', value)}
+                    >
+                        <SelectTrigger className={`bg-slate-800/50 border-slate-700 text-slate-200 ${errors.genre ? 'border-red-500' : ''}`}>
+                            <SelectValue placeholder="Select a genre" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                            {genres.map((genre) => (
+                                <SelectItem key={genre.value} value={genre.value}>
+                                    {genre.value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     {errors.genre && (
                         <p className="mt-1 text-red-400">{errors.genre}</p>
                     )}

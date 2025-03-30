@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export default function InitialLoadingScreen({ onLoadingComplete }: { onLoadingComplete: () => void }) {
   const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState('Loading music embeds...');
+  const message = 'Loading music embeds...';
 
   useEffect(() => {
     // Simulate loading progress

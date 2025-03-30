@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from './button';
-import { Moon, Sun, Monitor, Palette } from 'lucide-react';
+import { Palette } from 'lucide-react';
 import { useState } from 'react';
 
 interface ThemeSelectorProps {

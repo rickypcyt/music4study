@@ -1,6 +1,7 @@
 'use client';
 
 import GenreCloud from './GenreCloud';
+import { useRouter } from 'next/navigation';
 
 interface Tag {
   value: string;
@@ -8,11 +9,17 @@ interface Tag {
 }
 
 export default function GenresPage({ genres }: { genres: Tag[] }) {
+  const router = useRouter();
+
+  const handleGenreClick = (genre: string) => {
+    router.push(`/?genre=${encodeURIComponent(genre)}`);
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1814]">
       <main className="w-full px-2 sm:px-4 lg:px-6 py-8">
         <div className="flex justify-center items-center min-h-[60vh]">
-          <GenreCloud tags={genres} />
+          <GenreCloud tags={genres} onGenreClick={handleGenreClick} />
         </div>
       </main>
 

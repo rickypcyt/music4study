@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,7 +21,6 @@ interface Link {
 
 interface LinkCardProps {
   link: Link;
-  priority?: boolean;
 }
 
 interface Combination {
@@ -29,7 +28,7 @@ interface Combination {
   name: string;
 }
 
-export default function LinkCard({ link, priority = false }: LinkCardProps) {
+export default function LinkCard({ link }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState("");
@@ -39,13 +38,7 @@ export default function LinkCard({ link, priority = false }: LinkCardProps) {
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (isAddModalOpen) {
-      fetchCombinations();
-    }
-  }, [isAddModalOpen]);
-
-  const fetchCombinations = async () => {
+  const fetchCombinations = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('combinations')
@@ -62,7 +55,13 @@ export default function LinkCard({ link, priority = false }: LinkCardProps) {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      fetchCombinations();
+    }
+  }, [isAddModalOpen, fetchCombinations]);
 
   const handleAddToCombination = async () => {
     if (!selectedCombination) return;
@@ -109,11 +108,11 @@ export default function LinkCard({ link, priority = false }: LinkCardProps) {
 
       setIsAddModalOpen(false);
       setSelectedCombination(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding to combination:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add track to combination. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to add track to combination. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -169,14 +168,6 @@ export default function LinkCard({ link, priority = false }: LinkCardProps) {
     }
     
     return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-  };
-
-  const getSpotifyEmbedUrl = (url: string) => {
-    // Extract the Spotify URI
-    const parts = url.split('/');
-    const type = parts[parts.length - 2]; // track, album, or playlist
-    const id = parts[parts.length - 1].split('?')[0];
-    return `https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0`;
   };
 
   const getSoundCloudEmbedUrl = (url: string) => {

@@ -34,7 +34,7 @@ export const getSpotifyEmbedUrl = (url: string): string => {
   return `https://open.spotify.com/embed/${type}/${id}`;
 };
 
-export const renderEmbed = (link: MusicLink) => {
+export const renderEmbed = (link: MusicLink): React.ReactElement => {
   const embedType = getEmbedType(link.url);
 
   switch (embedType) {
