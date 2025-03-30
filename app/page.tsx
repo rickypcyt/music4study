@@ -57,9 +57,9 @@ function HomeContent() {
   });
   const [currentTheme, setCurrentTheme] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'system';
+      return localStorage.getItem('theme') || 'coffee';
     }
-    return 'system';
+    return 'coffee';
   });
   const allLinksRef = useRef<Link[]>([]);
   const isInitialLoadRef = useRef(true);

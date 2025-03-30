@@ -163,6 +163,19 @@ export default function Navbar({
                         <div className="space-y-2">
                           <button
                             onClick={() => {
+                              onThemeChange('coffee');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'coffee'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Coffee
+                          </button>
+                          <button
+                            onClick={() => {
                               onThemeChange('dracula');
                               setShowThemeMenu(false);
                             }}

@@ -13,6 +13,7 @@ export default function ThemeSelector({ onThemeChange, currentTheme }: ThemeSele
   const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   const themes = [
+    { id: 'coffee', name: 'Coffee', icon: '☕' },
     { id: 'dracula', name: 'Dracula', icon: '🎨' },
     { id: 'catppuccin', name: 'Catppuccin', icon: '🍵' },
     { id: 'solarized', name: 'Solarized', icon: '☀️' },
