@@ -2,19 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/app/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue
-} from '@/components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, X } from 'lucide-react';
+import { useToast } from '@/components/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 
 type FieldError = string | null;
 
@@ -25,22 +16,12 @@ interface FormErrors {
     username: FieldError;
 }
 
-const MUSIC_TYPES = [
-    { value: 'video', label: 'Video' },
-    { value: 'mix', label: 'Mix' },
-    { value: 'song', label: 'Song' },
-] as const;
-
-const SUGGESTED_GENRES = [
-    'Classical', 'Jazz', 'Lo-fi', 'Ambient', 'Electronic',
-    'Study Music', 'Piano', 'Nature Sounds'
-];
-
 interface SubmitFormProps {
-    onClose: () => void; // Changed setIsOpen to onClose
+    onClose: () => void;
+    genres: { value: string; count: number }[];
 }
 
-function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onClose
+function SubmitForm({ onClose, genres }: SubmitFormProps) {
     const { toast } = useToast();
     const router = useRouter();
     const [formData, setFormData] = useState({
@@ -73,7 +54,7 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
                 : !isValidUrl(formData.url)
                     ? 'Please enter a valid URL'
                     : null,
-            type: !formData.type ? 'Genre is required' : null,
+            type: !formData.type ? 'Type is required' : null,
             genre: !formData.genre ? 'Genre is required' : null,
             username: !formData.username ? 'Name is required' : null
         };
@@ -82,105 +63,75 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
         return !Object.values(newErrors).some(error => error !== null);
     };
 
-    const handleSubmit = async (event: React.FormEvent) => {
-        event.preventDefault();
-
-        if (!validateForm()) {
-            toast({
-                title: 'Validation Error',
-                description: 'Please check all fields and try again.',
-                variant: 'destructive',
-            });
-            return;
+    const handleChange = (field: keyof typeof formData, value: string) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+        // Clear error when user starts typing
+        if (errors[field]) {
+            setErrors(prev => ({ ...prev, [field]: null }));
         }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validateForm()) return;
 
         setLoading(true);
-        const supabase = createClient();
-
         try {
             const { error } = await supabase
                 .from('links')
-                .insert([formData]);
+                .insert([{
+                    url: formData.url,
+                    type: formData.type,
+                    genre: formData.genre,
+                    username: formData.username,
+                    date_added: new Date().toISOString()
+                }]);
 
             if (error) throw error;
 
             toast({
-                title: 'Success!',
-                description: 'Your music has been uploaded successfully.',
+                title: "Success!",
+                description: "Your track has been submitted successfully.",
             });
 
-            onClose(); // Changed setIsOpen(false) to onClose()
-            router.push('/');
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            onClose();
+            router.refresh();
         } catch (error) {
+            console.error('Error submitting:', error);
             toast({
-                title: 'Upload Failed',
-                description: 'There was an error uploading your music. Please try again.',
-                variant: 'destructive',
+                title: "Error",
+                description: "There was an error submitting your track. Please try again.",
+                variant: "destructive",
             });
         } finally {
             setLoading(false);
         }
     };
 
-    const handleChange = (
-        field: keyof typeof formData,
-        value: string
-    ) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: null }));
-        }
-    };
-
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => onClose()} type="button"> {/* Changed setIsOpen(false) to onClose() */}
-                    <X className="h-4 w-4" />
-                </Button>
-            </div>
-            <Alert variant="default" className="bg-yellow-950/20 border-yellow-600/20 text-yellow-200">
-                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                <AlertTitle>Important</AlertTitle>
-                <AlertDescription className="text-yellow-200/80">
-                    Please ensure your link is accessible and contains appropriate study music.
-                </AlertDescription>
-            </Alert>
-
-            <div className="space-y-4">
+            <div className="space-y-8">
                 <div>
                     <Input
-                        placeholder="Music URL (e.g., YouTube, Spotify)"
+                        placeholder="URL"
                         value={formData.url}
                         onChange={e => handleChange('url', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.url ? 'border-red-500' : ''
-                            }`}
-                        aria-invalid={errors.url ? 'true' : 'false'}
+                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.url ? 'border-red-500' : ''}`}
                     />
                     {errors.url && (
-                        <p className="mt-1 text-sm text-red-400">{errors.url}</p>
+                        <p className="mt-1 text-red-400">{errors.url}</p>
                     )}
                 </div>
+
                 <div>
-                    <Select
+                    <Input
+                        placeholder="Type (e.g., Video, Mix, Song)"
                         value={formData.type}
-                        onValueChange={value => handleChange('type', value)}
-                    >
-                        <SelectTrigger className={`bg-slate-800/50 border-slate-700 text-slate-200 ${errors.type ? 'border-red-500' : ''
-                            }`}>
-                            <SelectValue placeholder="Select content type" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700">
-                            {MUSIC_TYPES.map(({ value, label }) => (
-                                <SelectItem key={value} value={value} className="text-slate-200 focus:bg-slate-700">
-                                    {label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        onChange={e => handleChange('type', e.target.value)}
+                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.type ? 'border-red-500' : ''}`}
+                    />
                     {errors.type && (
-                        <p className="mt-1 text-sm text-red-400">{errors.type}</p>
+                        <p className="mt-1 text-red-400">{errors.type}</p>
                     )}
                 </div>
 
@@ -189,17 +140,10 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
                         placeholder="Genre"
                         value={formData.genre}
                         onChange={e => handleChange('genre', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.genre ? 'border-red-500' : ''
-                            }`}
-                        list="genre-suggestions"
+                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.genre ? 'border-red-500' : ''}`}
                     />
-                    <datalist id="genre-suggestions">
-                        {SUGGESTED_GENRES.map(genre => (
-                            <option key={genre} value={genre} />
-                        ))}
-                    </datalist>
                     {errors.genre && (
-                        <p className="mt-1 text-sm text-red-400">{errors.genre}</p>
+                        <p className="mt-1 text-red-400">{errors.genre}</p>
                     )}
                 </div>
 
@@ -208,12 +152,11 @@ function SubmitForm({ onClose }: SubmitFormProps) { // Changed setIsOpen to onCl
                         placeholder="Your name"
                         value={formData.username}
                         onChange={e => handleChange('username', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.username ? 'border-red-500' : ''
-                            }`}
+                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.username ? 'border-red-500' : ''}`}
                         maxLength={50}
                     />
                     {errors.username && (
-                        <p className="mt-1 text-sm text-red-400">{errors.username}</p>
+                        <p className="mt-1 text-red-400">{errors.username}</p>
                     )}
                 </div>
             </div>

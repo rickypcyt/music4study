@@ -1,108 +1,261 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { Button } from './button';
+import { Music2, Home, Tags, Layers, ArrowUpDown, X, Sun } from 'lucide-react';
 import { useState } from 'react';
-import SubmitForm from '@/app/submit/SubmitForm';
-import { Home, Plus, Music, Menu } from 'lucide-react';
-import Link from 'next/link';
+import ThemeSelector from './ThemeSelector';
 import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "./dialog";
 
-export default function Navbar() {
-  const [showSubmitForm, setShowSubmitForm] = useState(false);
+interface NavbarProps {
+  currentView: 'home' | 'genres' | 'combinations';
+  onGenresClick: () => void;
+  onHomeClick: () => void;
+  onSubmitClick: () => void;
+  onCombinationsClick: () => void;
+  onSortChange: (sort: string) => void;
+  currentSort: string;
+  onThemeChange: (theme: string) => void;
+  currentTheme: string;
+}
 
-  const navLinks = [
-    { href: '/', icon: <Home className="h-4 w-4" />, label: 'Home' },
-    // Add more nav links here as needed
-  ];
-
-  const NavContent = () => (
-    <>
-      {navLinks.map((link) => (
-        <Link key={link.href} href={link.href}>
-          <Button
-            variant="ghost"
-            className="text-slate-300 hover:text-white hover:bg-slate-800 flex items-center gap-2 transition-all duration-200"
-            aria-label={link.label}
-          >
-            {link.icon}
-            <span>{link.label}</span>
-          </Button>
-        </Link>
-      ))}
-    </>
-  );
-
-  const handleCloseSubmitForm = () => {
-    setShowSubmitForm(false);
-  };
+export default function Navbar({
+  currentView,
+  onGenresClick,
+  onHomeClick,
+  onSubmitClick,
+  onCombinationsClick,
+  onSortChange,
+  currentSort,
+  onThemeChange,
+  currentTheme,
+}: NavbarProps) {
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   return (
-    <>
-      <nav className="sticky top-0 z-50 bg-slate-900 border-b border-slate-800 backdrop-blur-sm bg-opacity-80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo and Brand */}
-            <Link
-              href="/"
-              className="flex items-center gap-2 hover:opacity-90 transition-all duration-200 group"
-              aria-label="Music4Study Home"
-            >
-              <Music className="h-6 w-6 text-indigo-500 group-hover:text-indigo-400 transition-colors" />
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent hidden sm:block">
-                Music4Study
-              </h1>
-            </Link>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-4">
-              <NavContent />
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-4">
-              <Button
-                className="bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-2 shadow-lg transition-all duration-200 hover:shadow-indigo-500/25"
-                onClick={() => setShowSubmitForm(true)}
-                aria-label="Add new track"
+    <nav className="navbar border-b border-border/10">
+      <div className="w-full px-2 sm:px-4 lg:px-6">
+        <div className="flex justify-between h-16 border-b">
+          <div className="flex">
+            <div className="hidden sm:flex sm:space-x-8">
+              <button
+                onClick={onHomeClick}
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+                  currentView === 'home'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+                }`}
               >
-                <Plus className="h-4 w-4" />
-                <span className="hidden sm:inline">Add Track</span>
-              </Button>
-
-              {/* Mobile Menu */}
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="md:hidden text-slate-300 hover:text-white hover:bg-slate-800"
-                    aria-label="Open menu"
-                  >
-                    <Menu className="h-6 w-6" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="bg-slate-900 border-slate-800">
-                  <div className="flex flex-col gap-4 mt-8">
-                    <NavContent />
-                  </div>
-                </SheetContent>
-              </Sheet>
+                <Home className="h-5 w-5 mr-2" />
+                Home
+              </button>
+              <button
+                onClick={onGenresClick}
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+                  currentView === 'genres'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+                }`}
+              >
+                <Tags className="h-5 w-5 mr-2" />
+                Genres
+              </button>
+              <button
+                onClick={onCombinationsClick}
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+                  currentView === 'combinations'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+                }`}
+              >
+                <Layers className="h-5 w-5 mr-2" />
+                Combinations
+              </button>
             </div>
           </div>
-        </div>
-      </nav>
-
-      {/* Submit Form Modal */}
-      {showSubmitForm && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-50 flex items-center justify-center transition-all">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-lg max-w-xl w-full mx-4 shadow-xl">
-            <SubmitForm onClose={handleCloseSubmitForm} />
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <h1 className="text-2xl font-serif text-foreground tracking-wide pt-4">Music4Study</h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            {currentView === 'home' && (
+              <>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200 text-base"
+                    onClick={() => setShowSortMenu(!showSortMenu)}
+                  >
+                    <ArrowUpDown className="h-5 w-5 mr-2" />
+                    Sort by
+                  </Button>
+                  {showSortMenu && (
+                    <Dialog open={showSortMenu} onOpenChange={setShowSortMenu}>
+                      <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-serif">Sort by</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => {
+                              onSortChange('date');
+                              setShowSortMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentSort === 'date'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Date Added
+                          </button>
+                          <button
+                            onClick={() => {
+                              onSortChange('genre');
+                              setShowSortMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentSort === 'genre'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Genre
+                          </button>
+                          <button
+                            onClick={() => {
+                              onSortChange('username');
+                              setShowSortMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentSort === 'username'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Uploader
+                          </button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200 text-base"
+                    onClick={() => setShowThemeMenu(!showThemeMenu)}
+                  >
+                    <Sun className="h-5 w-5 mr-2" />
+                    Theme
+                  </Button>
+                  {showThemeMenu && (
+                    <Dialog open={showThemeMenu} onOpenChange={setShowThemeMenu}>
+                      <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
+                        <DialogHeader>
+                          <DialogTitle className="text-xl font-serif">Theme</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => {
+                              onThemeChange('dracula');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'dracula'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Dracula
+                          </button>
+                          <button
+                            onClick={() => {
+                              onThemeChange('catppuccin');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'catppuccin'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Catppuccin
+                          </button>
+                          <button
+                            onClick={() => {
+                              onThemeChange('solarized');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'solarized'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Solarized
+                          </button>
+                          <button
+                            onClick={() => {
+                              onThemeChange('monokai');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'monokai'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Monokai
+                          </button>
+                          <button
+                            onClick={() => {
+                              onThemeChange('gruvbox');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'gruvbox'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Gruvbox
+                          </button>
+                          <button
+                            onClick={() => {
+                              onThemeChange('futuristic');
+                              setShowThemeMenu(false);
+                            }}
+                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                              currentTheme === 'futuristic'
+                                ? 'bg-accent text-accent-foreground'
+                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                            }`}
+                          >
+                            Futuristic
+                          </button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                </div>
+              </>
+            )}
+            <Button
+              onClick={onSubmitClick}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-base"
+            >
+              Submit Track
+            </Button>
           </div>
         </div>
-      )}
-    </>
+      </div>
+    </nav>
   );
-}
+} 

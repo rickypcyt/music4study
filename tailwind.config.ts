@@ -6,6 +6,8 @@ export default {
     "./app/**/*.{js,ts,jsx,tsx}",
     "./components/**/*.{js,ts,jsx,tsx}",
     "./node_modules/shadcn-ui/**/*.js", // Incluye shadcn/ui
+    './pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
@@ -56,6 +58,20 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      keyframes: {
+        float: {
+          '0%, 100%': { transform: 'translate(-50%, -50%) translateY(0)' },
+          '50%': { transform: 'translate(-50%, -50%) translateY(-20px)' },
+        }
+      },
+      animation: {
+        float: 'float 6s ease-in-out infinite',
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "gradient-conic":
+          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
       },
     },
   },

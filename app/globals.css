@@ -2,52 +2,242 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
 @layer base {
-/* globals.css */
-:root {
-  --background: 0 0% 100%; /* Blanco */
-  --foreground: 222.2 84% 4.9%; /* Negro */
-  --card: 0 0% 100%; /* Blanco */
-  --card-foreground: 222.2 84% 4.9%; /* Negro */
-  --primary: 221.2 83.2% 53.3%; /* Azul */
-  --primary-foreground: 210 40% 98%; /* Blanco */
-  --secondary: 210 40% 96.1%; /* Gris claro */
-  --secondary-foreground: 222.2 47.4% 11.2%; /* Negro */
-  --muted: 210 40% 96.1%; /* Gris claro */
-  --muted-foreground: 215.4 16.3% 46.9%; /* Gris */
-  --accent: 210 40% 96.1%; /* Gris claro */
-  --accent-foreground: 222.2 47.4% 11.2%; /* Negro */
-  --destructive: 0 84.2% 60.2%; /* Rojo */
-  --destructive-foreground: 210 40% 98%; /* Blanco */
-  --border: 214.3 31.8% 91.4%; /* Gris claro */
-  --input: 214.3 31.8% 91.4%; /* Gris claro */
-  --ring: 221.2 83.2% 53.3%; /* Azul */
-  --radius: 0.5rem; /* Radio de borde */
-}
+  html {
+    @apply bg-background min-h-screen;
+  }
 
-.dark {
-  --background: 222.2 84% 4.9%; /* Negro */
-  --foreground: 210 40% 98%; /* Blanco */
-  --card: 222.2 84% 4.9%; /* Negro */
-  --card-foreground: 210 40% 98%; /* Blanco */
-  --primary: 217.2 91.2% 59.8%; /* Azul */
-  --primary-foreground: 222.2 47.4% 11.2%; /* Negro */
-  --secondary: 217.2 32.6% 17.5%; /* Gris oscuro */
-  --secondary-foreground: 210 40% 98%; /* Blanco */
-  --muted: 217.2 32.6% 17.5%; /* Gris oscuro */
-  --muted-foreground: 215 20.2% 65.1%; /* Gris */
-  --accent: 217.2 32.6% 17.5%; /* Gris oscuro */
-  --accent-foreground: 210 40% 98%; /* Blanco */
-  --destructive: 0 62.8% 30.6%; /* Rojo oscuro */
-  --destructive-foreground: 210 40% 98%; /* Blanco */
-  --border: 217.2 32.6% 17.5%; /* Gris oscuro */
-  --input: 217.2 32.6% 17.5%; /* Gris oscuro */
-  --ring: 224.3 76.3% 48%; /* Azul */
-}
+  body {
+    @apply text-foreground font-light leading-relaxed min-h-screen;
+    background-image: 
+      radial-gradient(circle at 100% 0%, hsl(var(--primary) / 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 0% 100%, hsl(var(--secondary) / 0.03) 0%, transparent 50%),
+      linear-gradient(to bottom, hsl(var(--background) / 0.8), hsl(var(--background) / 0.95));
+    background-attachment: fixed;
+  }
+
+  /* Actualizar el contenedor principal */
+  #__next {
+    @apply bg-background min-h-screen;
+  }
+
+  /* Actualizar el contenedor de la aplicación */
+  .app-container {
+    @apply min-h-screen;
+    background: hsl(var(--background));
+  }
+
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+
+    /* Dracula Theme */
+    --dracula-bg: 231 15% 18%;
+    --dracula-fg: 60 30% 96%;
+    --dracula-primary: 326 100% 74%;
+    --dracula-secondary: 265 89% 78%;
+    --dracula-accent: 135 94% 65%;
+    --dracula-muted: 231 15% 30%;
+    --dracula-border: 231 15% 25%;
+
+    /* Catppuccin Theme */
+    --catppuccin-bg: 234 25% 18%;
+    --catppuccin-fg: 226 23% 91%;
+    --catppuccin-primary: 316 70% 50%;
+    --catppuccin-secondary: 228 91% 64%;
+    --catppuccin-accent: 150 65% 60%;
+    --catppuccin-muted: 234 25% 25%;
+    --catppuccin-border: 234 25% 22%;
+
+    /* Solarized Theme */
+    --solarized-bg: 193 43% 14%;
+    --solarized-fg: 193 43% 93%;
+    --solarized-primary: 331 74% 61%;
+    --solarized-secondary: 175 100% 35%;
+    --solarized-accent: 45 93% 47%;
+    --solarized-muted: 193 43% 20%;
+    --solarized-border: 193 43% 18%;
+
+    /* Monokai Theme */
+    --monokai-bg: 0 0% 15%;
+    --monokai-fg: 60 30% 96%;
+    --monokai-primary: 326 100% 74%;
+    --monokai-secondary: 265 89% 78%;
+    --monokai-accent: 135 94% 65%;
+    --monokai-muted: 0 0% 25%;
+    --monokai-border: 0 0% 20%;
+
+    /* Gruvbox Theme */
+    --gruvbox-bg: 60 30% 15%;
+    --gruvbox-fg: 60 30% 96%;
+    --gruvbox-primary: 142 70% 45%;
+    --gruvbox-secondary: 35 90% 50%;
+    --gruvbox-accent: 175 70% 41%;
+    --gruvbox-muted: 60 30% 25%;
+    --gruvbox-border: 60 30% 20%;
+  }
+
+  .theme-dracula {
+    --background: var(--dracula-bg);
+    --foreground: var(--dracula-fg);
+    --card: var(--dracula-bg);
+    --card-foreground: var(--dracula-fg);
+    --popover: var(--dracula-bg);
+    --popover-foreground: var(--dracula-fg);
+    --primary: var(--dracula-primary);
+    --primary-foreground: var(--dracula-bg);
+    --secondary: var(--dracula-secondary);
+    --secondary-foreground: var(--dracula-bg);
+    --muted: var(--dracula-muted);
+    --muted-foreground: var(--dracula-fg);
+    --accent: var(--dracula-accent);
+    --accent-foreground: var(--dracula-bg);
+    --border: var(--dracula-border);
+    --input: var(--dracula-muted);
+    --ring: var(--dracula-primary);
+  }
+
+  .theme-catppuccin {
+    --background: var(--catppuccin-bg);
+    --foreground: var(--catppuccin-fg);
+    --card: var(--catppuccin-bg);
+    --card-foreground: var(--catppuccin-fg);
+    --popover: var(--catppuccin-bg);
+    --popover-foreground: var(--catppuccin-fg);
+    --primary: var(--catppuccin-primary);
+    --primary-foreground: var(--catppuccin-bg);
+    --secondary: var(--catppuccin-secondary);
+    --secondary-foreground: var(--catppuccin-bg);
+    --muted: var(--catppuccin-muted);
+    --muted-foreground: var(--catppuccin-fg);
+    --accent: var(--catppuccin-accent);
+    --accent-foreground: var(--catppuccin-bg);
+    --border: var(--catppuccin-border);
+    --input: var(--catppuccin-muted);
+    --ring: var(--catppuccin-primary);
+  }
+
+  .theme-solarized {
+    --background: var(--solarized-bg);
+    --foreground: var(--solarized-fg);
+    --card: var(--solarized-bg);
+    --card-foreground: var(--solarized-fg);
+    --popover: var(--solarized-bg);
+    --popover-foreground: var(--solarized-fg);
+    --primary: var(--solarized-primary);
+    --primary-foreground: var(--solarized-bg);
+    --secondary: var(--solarized-secondary);
+    --secondary-foreground: var(--solarized-bg);
+    --muted: var(--solarized-muted);
+    --muted-foreground: var(--solarized-fg);
+    --accent: var(--solarized-accent);
+    --accent-foreground: var(--solarized-bg);
+    --border: var(--solarized-border);
+    --input: var(--solarized-muted);
+    --ring: var(--solarized-primary);
+  }
+
+  .theme-monokai {
+    --background: var(--monokai-bg);
+    --foreground: var(--monokai-fg);
+    --card: var(--monokai-bg);
+    --card-foreground: var(--monokai-fg);
+    --popover: var(--monokai-bg);
+    --popover-foreground: var(--monokai-fg);
+    --primary: var(--monokai-primary);
+    --primary-foreground: var(--monokai-bg);
+    --secondary: var(--monokai-secondary);
+    --secondary-foreground: var(--monokai-bg);
+    --muted: var(--monokai-muted);
+    --muted-foreground: var(--monokai-fg);
+    --accent: var(--monokai-accent);
+    --accent-foreground: var(--monokai-bg);
+    --border: var(--monokai-border);
+    --input: var(--monokai-muted);
+    --ring: var(--monokai-primary);
+  }
+
+  .theme-gruvbox {
+    --background: var(--gruvbox-bg);
+    --foreground: var(--gruvbox-fg);
+    --card: var(--gruvbox-bg);
+    --card-foreground: var(--gruvbox-fg);
+    --popover: var(--gruvbox-bg);
+    --popover-foreground: var(--gruvbox-fg);
+    --primary: var(--gruvbox-primary);
+    --primary-foreground: var(--gruvbox-bg);
+    --secondary: var(--gruvbox-secondary);
+    --secondary-foreground: var(--gruvbox-bg);
+    --muted: var(--gruvbox-muted);
+    --muted-foreground: var(--gruvbox-fg);
+    --accent: var(--gruvbox-accent);
+    --accent-foreground: var(--gruvbox-bg);
+    --border: var(--gruvbox-border);
+    --input: var(--gruvbox-muted);
+    --ring: var(--gruvbox-primary);
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+
+  .futuristic {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9% / 0.8;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9% / 0.8;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5% / 0.5;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5% / 0.5;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5% / 0.5;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5% / 0.5;
+    --input: 217.2 32.6% 17.5% / 0.5;
+    --ring: 224.3 76.3% 48%;
+  }
 }
 
 @layer base {
@@ -55,6 +245,118 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-light leading-relaxed;
+    @apply bg-background text-foreground;
   }
+}
+
+/* Estilos personalizados para las tarjetas */
+.card {
+  @apply transition-all duration-300 hover:shadow-lg;
+  backdrop-filter: blur(10px);
+  background: hsl(var(--card) / 0.7);
+  border: 1px solid hsl(var(--border) / 0.1);
+  box-shadow: 0 4px 6px -1px hsl(var(--foreground) / 0.05);
+}
+
+/* Estilos para los botones */
+.button {
+  @apply transition-all duration-300;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: 1px solid hsl(var(--border) / 0.1);
+}
+
+.button:hover {
+  background: hsl(var(--primary) / 0.9);
+  border-color: hsl(var(--border) / 0.2);
+}
+
+.button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+/* Estilos para los inputs */
+.input {
+  @apply transition-all duration-300;
+  background: hsl(var(--input) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.1);
+  color: hsl(var(--foreground));
+}
+
+.input:focus {
+  border-color: hsl(var(--border) / 0.2);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+/* Estilos para el scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Estilos para el navbar */
+.navbar {
+  @apply transition-all duration-300;
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid hsl(var(--border) / 0.1);
+}
+
+/* Estilos para los diálogos */
+.dialog {
+  @apply transition-all duration-300;
+  background: hsl(var(--background) / 0.95);
+  border: 1px solid hsl(var(--border) / 0.1);
+}
+
+/* Estilos para los enlaces */
+a {
+  @apply transition-colors duration-200;
+  color: hsl(var(--primary));
+}
+
+a:hover {
+  color: hsl(var(--primary) / 0.8);
+}
+
+/* Estilos para los títulos */
+h1, h2, h3, h4, h5, h6 {
+  @apply font-serif;
+  color: hsl(var(--foreground));
+}
+
+/* Estilos para el texto */
+p {
+  color: hsl(var(--foreground) / 0.8);
+}
+
+/* Estilos para los elementos de lista */
+ul, ol {
+  color: hsl(var(--foreground) / 0.8);
+}
+
+/* Estilos para los elementos de formulario */
+select, textarea {
+  @apply transition-all duration-300;
+  background: hsl(var(--input) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.1);
+  color: hsl(var(--foreground));
+}
+
+select:focus, textarea:focus {
+  border-color: hsl(var(--border) / 0.2);
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
 }
