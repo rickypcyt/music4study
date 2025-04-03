@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from './button';
-import { Home, Tags, Layers, ArrowUpDown, Sun } from 'lucide-react';
+import { Home, Tags, Layers, ArrowUpDown, Sun, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import {
   Dialog,
@@ -35,46 +35,80 @@ export default function Navbar({
 }: NavbarProps) {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const NavLinks = () => (
+    <>
+      <button
+        onClick={() => {
+          onHomeClick();
+          setIsMobileMenuOpen(false);
+        }}
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+          currentView === 'home'
+            ? 'border-primary text-foreground'
+            : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+        }`}
+      >
+        <Home className="h-5 w-5 mr-2" />
+        Home
+      </button>
+      <button
+        onClick={() => {
+          onGenresClick();
+          setIsMobileMenuOpen(false);
+        }}
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+          currentView === 'genres'
+            ? 'border-primary text-foreground'
+            : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+        }`}
+      >
+        <Tags className="h-5 w-5 mr-2" />
+        Genres
+      </button>
+      <button
+        onClick={() => {
+          onCombinationsClick();
+          setIsMobileMenuOpen(false);
+        }}
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+          currentView === 'combinations'
+            ? 'border-primary text-foreground'
+            : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+        }`}
+      >
+        <Layers className="h-5 w-5 mr-2" />
+        Combinations
+      </button>
+    </>
+  );
 
   return (
     <nav className="navbar border-b border-border/10">
       <div className="w-full px-2 sm:px-4 lg:px-6">
         <div className="flex justify-between h-16 border-b">
           <div className="flex">
+            {/* Mobile menu button */}
+            <div className="sm:hidden flex items-center">
+              <button
+                onClick={toggleMobileMenu}
+                className="inline-flex items-center justify-center p-2 rounded-md text-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none"
+              >
+                {isMobileMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </button>
+            </div>
+            {/* Desktop menu */}
             <div className="hidden sm:flex sm:space-x-8">
-              <button
-                onClick={onHomeClick}
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
-                  currentView === 'home'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-                }`}
-              >
-                <Home className="h-5 w-5 mr-2" />
-                Home
-              </button>
-              <button
-                onClick={onGenresClick}
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
-                  currentView === 'genres'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-                }`}
-              >
-                <Tags className="h-5 w-5 mr-2" />
-                Genres
-              </button>
-              <button
-                onClick={onCombinationsClick}
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
-                  currentView === 'combinations'
-                    ? 'border-primary text-foreground'
-                    : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-                }`}
-              >
-                <Layers className="h-5 w-5 mr-2" />
-                Combinations
-              </button>
+              <NavLinks />
             </div>
           </div>
           <div className="absolute left-1/2 transform -translate-x-1/2">
@@ -265,6 +299,12 @@ export default function Navbar({
             >
               Submit Track
             </Button>
+          </div>
+        </div>
+        {/* Mobile menu */}
+        <div className={`sm:hidden ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
+          <div className="px-2 pt-2 pb-3 space-y-1">
+            <NavLinks />
           </div>
         </div>
       </div>
