@@ -85,32 +85,35 @@ export default function Navbar({
         <Layers className="h-5 w-5 mr-2" />
         Combinations
       </button>
-      {currentView === 'home' && (
-        <>
-          <button
-            onClick={() => {
-              setShowSortMenu(true);
-              setIsMobileMenuOpen(false);
-            }}
-            className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
-          >
-            <ArrowUpDown className="h-5 w-5 mr-2" />
-            Sort by
-          </button>
-          <button
-            onClick={() => {
-              setShowThemeMenu(true);
-              setIsMobileMenuOpen(false);
-            }}
-            className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
-          >
-            <Sun className="h-5 w-5 mr-2" />
-            Theme
-          </button>
-        </>
-      )}
-
     </>
+  );
+
+  const ControlButtons = () => (
+    currentView === 'home' && (
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => setShowSortMenu(true)}
+          className="inline-flex items-center px-3 py-2 rounded-md text-base font-medium text-foreground/70 hover:text-foreground hover:bg-accent/50"
+        >
+          <ArrowUpDown className="h-5 w-5 mr-2" />
+          Sort
+        </button>
+        <button
+          onClick={() => setShowThemeMenu(true)}
+          className="inline-flex items-center px-3 py-2 rounded-md text-base font-medium text-foreground/70 hover:text-foreground hover:bg-accent/50"
+        >
+          <Sun className="h-5 w-5 mr-2" />
+          Theme
+        </button>
+        <Button
+          onClick={onSubmitClick}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground text-base1 sm:text-base px-3 sm:px-4 py-1.5 sm:py-2"
+        >
+          <span className="sm:hidden">+</span>
+          <span className="hidden sm:inline">Submit Track</span>
+        </Button>
+      </div>
+    )
   );
 
   return (
@@ -139,185 +142,166 @@ export default function Navbar({
           <div className="absolute left-1/2 transform -translate-x-1/2">
             <h1 className="text-2xl sm:text-3xl font-mono text-foreground tracking-wider pt-4 font-light">Music4Study</h1>
           </div>
-          <div className="flex items-center space-x-4">
-            {currentView === 'home' && (
-              <>
-                <div className="relative">
-                  
-                  {showSortMenu && (
-                    <Dialog open={showSortMenu} onOpenChange={setShowSortMenu}>
-                      <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-serif">Sort by</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => {
-                              onSortChange('date');
-                              setShowSortMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentSort === 'date'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Date Added
-                          </button>
-                          <button
-                            onClick={() => {
-                              onSortChange('genre');
-                              setShowSortMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentSort === 'genre'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Genre
-                          </button>
-                          <button
-                            onClick={() => {
-                              onSortChange('username');
-                              setShowSortMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentSort === 'username'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Uploader
-                          </button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-                <div className="relative">
-
-                  {showThemeMenu && (
-                    <Dialog open={showThemeMenu} onOpenChange={setShowThemeMenu}>
-                      <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-serif">Theme</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => {
-                              onThemeChange('coffee');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'coffee'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Coffee
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('dracula');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'dracula'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Dracula
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('catppuccin');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'catppuccin'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Catppuccin
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('solarized');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'solarized'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Solarized
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('monokai');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'monokai'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Monokai
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('gruvbox');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'gruvbox'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Gruvbox
-                          </button>
-                          <button
-                            onClick={() => {
-                              onThemeChange('futuristic');
-                              setShowThemeMenu(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                              currentTheme === 'futuristic'
-                                ? 'bg-accent text-accent-foreground'
-                                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                            }`}
-                          >
-                            Futuristic
-                          </button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-              </>
-            )}
-            <Button
-              onClick={onSubmitClick}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm sm:text-base px-3 sm:px-4 py-1.5 sm:py-2"
-            >
-              <span className="sm:hidden">+</span>
-              <span className="hidden sm:inline">Submit Track</span>
-            </Button>
-          </div>
-        </div>
-        {/* Mobile menu */}
-        <div className={`sm:hidden ${isMobileMenuOpen ? 'block' : 'hidden'}`}>
-          <div className="px-2 pt-2 pb-3 space-y-1">
-            <NavLinks />
+          <div className="hidden sm:flex">
+            <ControlButtons />
           </div>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      {isMobileMenuOpen && (
+        <div className="sm:hidden">
+          <div className="pt-2 pb-3 space-y-1">
+            <NavLinks />
+            <div className="mt-4">
+              <ControlButtons />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sort Menu Dialog */}
+      {showSortMenu && (
+        <Dialog open={showSortMenu} onOpenChange={setShowSortMenu}>
+          <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-serif">Sort by</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  onSortChange('date');
+                  setShowSortMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentSort === 'date'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Date Added
+              </button>
+              <button
+                onClick={() => {
+                  onSortChange('genre');
+                  setShowSortMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentSort === 'genre'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Genre
+              </button>
+              <button
+                onClick={() => {
+                  onSortChange('username');
+                  setShowSortMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentSort === 'username'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Uploader
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Theme Menu Dialog */}
+      {showThemeMenu && (
+        <Dialog open={showThemeMenu} onOpenChange={setShowThemeMenu}>
+          <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-serif">Theme</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  onThemeChange('coffee');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'coffee'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Coffee
+              </button>
+              <button
+                onClick={() => {
+                  onThemeChange('dracula');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'dracula'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Dracula
+              </button>
+              <button
+                onClick={() => {
+                  onThemeChange('catppuccin');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'catppuccin'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Catppuccin
+              </button>
+              <button
+                onClick={() => {
+                  onThemeChange('solarized');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'solarized'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Solarized
+              </button>
+              <button
+                onClick={() => {
+                  onThemeChange('monokai');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'monokai'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Monokai
+              </button>
+              <button
+                onClick={() => {
+                  onThemeChange('gruvbox');
+                  setShowThemeMenu(false);
+                }}
+                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
+                  currentTheme === 'gruvbox'
+                    ? 'bg-accent text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                Gruvbox
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </nav>
   );
 } 

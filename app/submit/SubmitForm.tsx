@@ -117,10 +117,10 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                         placeholder="URL"
                         value={formData.url}
                         onChange={e => handleChange('url', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.url ? 'border-red-500' : ''}`}
+                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.url ? 'border-destructive' : ''}`}
                     />
                     {errors.url && (
-                        <p className="mt-1 text-red-400">{errors.url}</p>
+                        <p className="mt-1 text-destructive">{errors.url}</p>
                     )}
                 </div>
 
@@ -129,10 +129,10 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                         placeholder="Type (e.g., Video, Mix, Song)"
                         value={formData.type}
                         onChange={e => handleChange('type', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.type ? 'border-red-500' : ''}`}
+                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.type ? 'border-destructive' : ''}`}
                     />
                     {errors.type && (
-                        <p className="mt-1 text-red-400">{errors.type}</p>
+                        <p className="mt-1 text-destructive">{errors.type}</p>
                     )}
                 </div>
 
@@ -141,10 +141,10 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                         value={formData.genre}
                         onValueChange={(value) => handleChange('genre', value)}
                     >
-                        <SelectTrigger className={`bg-slate-800/50 border-slate-700 text-slate-200 ${errors.genre ? 'border-red-500' : ''}`}>
+                        <SelectTrigger className={`bg-background/50 border-border text-foreground ${errors.genre ? 'border-destructive' : ''}`}>
                             <SelectValue placeholder="Select a genre" />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectContent className="bg-background border-border">
                             {genres.map((genre) => (
                                 <SelectItem key={genre.value} value={genre.value}>
                                     {genre.value}
@@ -153,7 +153,7 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                         </SelectContent>
                     </Select>
                     {errors.genre && (
-                        <p className="mt-1 text-red-400">{errors.genre}</p>
+                        <p className="mt-1 text-destructive">{errors.genre}</p>
                     )}
                 </div>
 
@@ -162,11 +162,11 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                         placeholder="Your name"
                         value={formData.username}
                         onChange={e => handleChange('username', e.target.value)}
-                        className={`bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500 ${errors.username ? 'border-red-500' : ''}`}
+                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.username ? 'border-destructive' : ''}`}
                         maxLength={50}
                     />
                     {errors.username && (
-                        <p className="mt-1 text-red-400">{errors.username}</p>
+                        <p className="mt-1 text-destructive">{errors.username}</p>
                     )}
                 </div>
             </div>
@@ -174,7 +174,7 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
             <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/25"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200 hover:shadow-lg hover:shadow-primary/25"
             >
                 {loading ? 'Uploading...' : 'Share Music'}
             </Button>

@@ -441,7 +441,7 @@ function HomeContent() {
       </main>
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
           <SubmitForm onClose={() => setIsSubmitModalOpen(false)} genres={genres} />
         </DialogContent>
       </Dialog>
