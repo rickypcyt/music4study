@@ -143,15 +143,7 @@ export default function Navbar({
             {currentView === 'home' && (
               <>
                 <div className="relative">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200 text-base"
-                    onClick={() => setShowSortMenu(!showSortMenu)}
-                  >
-                    <ArrowUpDown className="h-5 w-5 mr-2" />
-                    Sort by
-                  </Button>
+                  
                   {showSortMenu && (
                     <Dialog open={showSortMenu} onOpenChange={setShowSortMenu}>
                       <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
@@ -204,15 +196,7 @@ export default function Navbar({
                   )}
                 </div>
                 <div className="relative">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-background text-foreground hover:bg-accent hover:text-accent-foreground transition-all duration-200 text-base"
-                    onClick={() => setShowThemeMenu(!showThemeMenu)}
-                  >
-                    <Sun className="h-5 w-5 mr-2" />
-                    Theme
-                  </Button>
+
                   {showThemeMenu && (
                     <Dialog open={showThemeMenu} onOpenChange={setShowThemeMenu}>
                       <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
