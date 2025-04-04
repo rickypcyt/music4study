@@ -34,20 +34,22 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
     if (!containerRef.current) return;
 
     const width = window.innerWidth * 0.9;
-    const height = 700;
-    const padding = 20;
+    const height = window.innerWidth < 640 ? 800 : 700; // Increased height for mobile
+    const padding = window.innerWidth < 640 ? 10 : 20;
 
     // Convertir tags a nodos
     const min = Math.min(...tags.map(t => t.count));
     const max = Math.max(...tags.map(t => t.count));
     
-    // Calcular el tamaño mínimo basado en el texto más largo
+    // Calcular el tamaño mínimo basado en el texto más largo y el ancho de la pantalla
     const maxTextLength = Math.max(...tags.map(t => t.value.length));
-    const minSize = Math.max(60, maxTextLength * 4);
+    const minSize = window.innerWidth < 640 
+      ? Math.max(40, maxTextLength * 3) // Smaller bubbles on mobile
+      : Math.max(60, maxTextLength * 4);
     
     const sizeScale = d3.scaleSqrt()
       .domain([min, max])
-      .range([minSize, Math.max(minSize * 1.2, 100)]);
+      .range([minSize, Math.max(minSize * 1.2, window.innerWidth < 640 ? 80 : 100)]);
 
     const isValidPosition = (x: number, y: number, size: number, existingNodes: Node[]): boolean => {
       if (x - size < 0 || x + size > width || y - size < 0 || y + size > height) {
@@ -199,46 +201,48 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
     <div className="flex justify-center items-center w-full overflow-hidden">
       <div 
         ref={containerRef}
-        className="w-[90vw] h-[700px] relative"
+        className="w-[90vw] h-[800px] sm:h-[700px] relative overflow-y-auto"
       >
-        {nodes.map((node) => (
-          <button
-            key={node.id}
-            className="
-              absolute rounded-full bg-[#e6e2d9]/20 
-              hover:bg-[#e6e2d9]/30 text-[#e6e2d9]
-              transition-all duration-300 ease-in-out
-              hover:scale-110 flex flex-col items-center justify-center
-              cursor-pointer text-center p-2
-              border border-[#e6e2d9]/10 shadow-lg
-            "
-            style={{ 
-              width: `${node.size * 2}px`,
-              height: `${node.size * 2}px`,
-              fontSize: `${getFontSize(node.value)}rem`,
-              opacity: 0.9 + (node.value / Math.max(...tags.map(t => t.count))) * 0.1,
-              transform: `translate(${node.x - node.size}px, ${node.y - node.size}px)`,
-            }}
-            onMouseEnter={() => {
-              setNodes(prevNodes => 
-                prevNodes.map(n => 
-                  n.id === node.id ? { ...n, isHovered: true } : n
-                )
-              );
-            }}
-            onMouseLeave={() => {
-              setNodes(prevNodes => 
-                prevNodes.map(n => 
-                  n.id === node.id ? { ...n, isHovered: false } : n
-                )
-              );
-            }}
-            onClick={() => onGenreClick(node.id)}
-          >
-            <span className="px-4 text-base font-bold">{node.id}</span>
-            <span className="text-xs opacity-70 mt-1">{node.value}</span>
-          </button>
-        ))}
+        <div className="min-h-full w-full">
+          {nodes.map((node) => (
+            <button
+              key={node.id}
+              className="
+                absolute rounded-full bg-[#e6e2d9]/20 
+                hover:bg-[#e6e2d9]/30 text-[#e6e2d9]
+                transition-all duration-300 ease-in-out
+                hover:scale-110 flex flex-col items-center justify-center
+                cursor-pointer text-center p-2
+                border border-[#e6e2d9]/10 shadow-lg
+              "
+              style={{ 
+                width: `${node.size * 2}px`,
+                height: `${node.size * 2}px`,
+                fontSize: `${getFontSize(node.value)}rem`,
+                opacity: 0.9 + (node.value / Math.max(...tags.map(t => t.count))) * 0.1,
+                transform: `translate(${node.x - node.size}px, ${node.y - node.size}px)`,
+              }}
+              onMouseEnter={() => {
+                setNodes(prevNodes => 
+                  prevNodes.map(n => 
+                    n.id === node.id ? { ...n, isHovered: true } : n
+                  )
+                );
+              }}
+              onMouseLeave={() => {
+                setNodes(prevNodes => 
+                  prevNodes.map(n => 
+                    n.id === node.id ? { ...n, isHovered: false } : n
+                  )
+                );
+              }}
+              onClick={() => onGenreClick(node.id)}
+            >
+              <span className="px-2 sm:px-4 text-sm sm:text-base font-bold">{node.id}</span>
+              <span className="text-xs opacity-70 mt-1">{node.value}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
