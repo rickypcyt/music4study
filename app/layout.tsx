@@ -2,7 +2,9 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { Suspense } from 'react';
-import SpotifyScript from '@/components/SpotifyScript';
+import { Inter } from 'next/font/google';
+import InitialLoadingScreen from '@/components/ui/InitialLoadingScreen';
+import SpotifyScript from '@/components/embeds/SpotifyScript';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

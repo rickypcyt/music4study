@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/ui/Navbar';
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import LinkCard from '@/components/LinkCard';
-import LoadingCards from '@/components/LoadingCards';
+import LoadingCards from '@/components/ui/LoadingCards';
 import GenreCloud from '@/components/ui/GenreCloud';
 import { getGenres } from './genres/actions';
 import { useRouter, useSearchParams } from 'next/navigation';

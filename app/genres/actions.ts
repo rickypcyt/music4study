@@ -1,16 +1,27 @@
 import { supabase } from '@/lib/supabase';
 
 export async function getGenres() {
-  const { data: links } = await supabase.from('links').select('genre');
+  try {
+    const { data, error } = await supabase
+      .from('links')
+      .select('genre')
+      .order('genre');
 
-  // Count genres
-  const genreCounts = links?.reduce((acc: { [key: string]: number }, link) => {
-    acc[link.genre] = (acc[link.genre] || 0) + 1;
-    return acc;
-  }, {}) || {};
+    if (error) throw error;
 
-  // Convert to array format for TagCloud
-  return Object.entries(genreCounts)
-    .map(([genre, count]) => ({ value: genre, count }))
-    .sort((a, b) => b.count - a.count);
+    // Count occurrences of each genre
+    const genreCounts = data.reduce((acc: { [key: string]: number }, item) => {
+      acc[item.genre] = (acc[item.genre] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Convert to array of objects with value and count
+    return Object.entries(genreCounts).map(([value, count]) => ({
+      value,
+      count
+    }));
+  } catch (error) {
+    console.error('Error fetching genres:', error);
+    return [];
+  }
 } 
