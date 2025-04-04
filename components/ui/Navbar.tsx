@@ -109,15 +109,7 @@ export default function Navbar({
           </button>
         </>
       )}
-      <button
-        onClick={() => {
-          onSubmitClick();
-          setIsMobileMenuOpen(false);
-        }}
-        className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
-      >
-        Submit Track
-      </button>
+
     </>
   );
 
@@ -145,7 +137,7 @@ export default function Navbar({
             </div>
           </div>
           <div className="absolute left-1/2 transform -translate-x-1/2">
-            <h1 className="text-2xl font-serif text-foreground tracking-wide pt-4">Music4Study</h1>
+            <h1 className="text-2xl sm:text-3xl font-mono text-foreground tracking-wider pt-4 font-light">Music4Study</h1>
           </div>
           <div className="flex items-center space-x-4">
             {currentView === 'home' && (
@@ -330,7 +322,8 @@ export default function Navbar({
               onClick={onSubmitClick}
               className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm sm:text-base px-3 sm:px-4 py-1.5 sm:py-2"
             >
-              Submit Track
+              <span className="sm:hidden">+</span>
+              <span className="hidden sm:inline">Submit Track</span>
             </Button>
           </div>
         </div>
