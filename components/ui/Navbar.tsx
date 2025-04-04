@@ -328,7 +328,7 @@ export default function Navbar({
             )}
             <Button
               onClick={onSubmitClick}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-base"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm sm:text-base px-3 sm:px-4 py-1.5 sm:py-2"
             >
               Submit Track
             </Button>
