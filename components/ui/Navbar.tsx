@@ -85,6 +85,39 @@ export default function Navbar({
         <Layers className="h-5 w-5 mr-2" />
         Combinations
       </button>
+      {currentView === 'home' && (
+        <>
+          <button
+            onClick={() => {
+              setShowSortMenu(true);
+              setIsMobileMenuOpen(false);
+            }}
+            className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
+          >
+            <ArrowUpDown className="h-5 w-5 mr-2" />
+            Sort by
+          </button>
+          <button
+            onClick={() => {
+              setShowThemeMenu(true);
+              setIsMobileMenuOpen(false);
+            }}
+            className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
+          >
+            <Sun className="h-5 w-5 mr-2" />
+            Theme
+          </button>
+        </>
+      )}
+      <button
+        onClick={() => {
+          onSubmitClick();
+          setIsMobileMenuOpen(false);
+        }}
+        className="inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground"
+      >
+        Submit Track
+      </button>
     </>
   );
 
