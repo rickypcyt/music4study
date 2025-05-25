@@ -18,9 +18,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 const ITEMS_PER_PAGE = 12;
 
-// localStorage Cache Config
-const LOCALSTORAGE_GENRE_CACHE_KEY = 'cached_genres';
-const LOCALSTORAGE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+// Optimized Cache Config
+const CACHE_CONFIG = {
+  GENRES: {
+    key: 'cached_genres',
+    ttl: 15 * 60 * 1000, // 15 minutes
+  },
+  LINKS: {
+    key: 'cached_links',
+    ttl: 5 * 60 * 1000, // 5 minutes
+  }
+};
 
 interface Link {
   id: string;
@@ -115,39 +123,51 @@ const HomeContent = memo(function HomeContent() {
     setLinks(filteredLinks);
   }, [selectedGenre, currentSort]);
 
-  // Memoize the fetchMoreLinks function with cache
+  // Optimize the fetchMoreLinks function
   const fetchMoreLinks = useCallback(async (page: number, limit: number) => {
-    return cachedQuery(
-      `links_page_${page}_${limit}`,
-      async () => {
-        const { data: newLinks, error } = await supabase
-          .from('links')
-          .select('*')
-          .order('date_added', { ascending: false })
-          .range((page - 1) * limit, page * limit - 1);
-
-        if (error) throw error;
-        return newLinks || [];
-      },
-      2 * 60 * 1000 // 2 minutes cache
-    );
-  }, []);
-
-  // Memoize the loadMoreLinks function
-  const loadMoreLinks = useCallback(async () => {
-    if (!hasMore || isLoading) return;
-
+    if (isLoading) return;
     setIsLoading(true);
+
     try {
-      const newLinks = await fetchMoreLinks(currentPage, ITEMS_PER_PAGE);
+      const cacheKey = `links_page_${page}_${limit}_${selectedGenre || 'all'}_${currentSort}`;
+      
+      const newLinks = await cachedQuery(
+        cacheKey,
+        async () => {
+          let query = supabase
+            .from('links')
+            .select('*')
+            .order(currentSort === 'date' ? 'date_added' : currentSort, { 
+              ascending: currentSort === 'date' ? false : true 
+            });
+
+          if (selectedGenre) {
+            query = query.eq('genre', selectedGenre);
+          }
+
+          const { data: newLinks, error } = await query
+            .range((page - 1) * limit, page * limit - 1);
+
+          if (error) throw error;
+          return newLinks || [];
+        },
+        2 * 60 * 1000 // 2 minutes cache
+      );
+
       if (newLinks.length > 0) {
-        setLinks(prevLinks => [...prevLinks, ...newLinks]);
+        // Deduplicate links by ID before updating state
+        setLinks(prevLinks => {
+          const existingIds = new Set(prevLinks.map(link => link.id));
+          const uniqueNewLinks = newLinks.filter(link => !existingIds.has(link.id));
+          return [...prevLinks, ...uniqueNewLinks];
+        });
         setCurrentPage(prevPage => prevPage + 1);
+        setHasMore(newLinks.length === limit);
       } else {
         setHasMore(false);
       }
     } catch (error) {
-      console.error('Error loading more links:', error);
+      console.error('Error fetching more links:', error);
       toast({
         title: "Error",
         description: "Failed to load more links. Please try again.",
@@ -156,29 +176,27 @@ const HomeContent = memo(function HomeContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [hasMore, isLoading, currentPage, fetchMoreLinks, toast]);
+  }, [selectedGenre, currentSort, isLoading, toast]);
 
-  // Update current sort when URL changes
+  // Handle infinite scroll
   useEffect(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      setCurrentSort(sortParam);
+    if (inView && hasMore && !isLoading) {
+      fetchMoreLinks(currentPage, ITEMS_PER_PAGE);
     }
-  }, [searchParams]);
+  }, [inView, hasMore, isLoading, currentPage, fetchMoreLinks]);
 
-  // Handle theme changes
+  // Reset links when genre or sort changes
   useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('theme-dracula', 'theme-catppuccin', 'theme-solarized', 'theme-monokai', 'theme-gruvbox');
-    root.classList.add(`theme-${currentTheme}`);
-  }, [currentTheme]);
+    const resetAndFetch = async () => {
+      setLinks([]);
+      setCurrentPage(1);
+      setHasMore(true);
+      await fetchMoreLinks(1, ITEMS_PER_PAGE);
+    };
+    resetAndFetch();
+  }, [selectedGenre, currentSort]);
 
-  const handleThemeChange = (theme: string) => {
-    setCurrentTheme(theme);
-    localStorage.setItem('theme', theme);
-  };
-
-  // Fetch all data on initial load with cache
+  // Optimize initial data loading
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!isInitialLoadRef.current) return;
@@ -187,88 +205,38 @@ const HomeContent = memo(function HomeContent() {
       setError(null);
       
       try {
-        console.log('Fetching initial data...');
-        
-        // --- Genre Data Fetching with localStorage Cache ---
-        let genresData = null;
-        const cachedGenres = localStorage.getItem(LOCALSTORAGE_GENRE_CACHE_KEY);
-
-        if (cachedGenres) {
-          try {
+        // Fetch genres with cache
+        const genresData = await (async () => {
+          const cachedGenres = localStorage.getItem(CACHE_CONFIG.GENRES.key);
+          if (cachedGenres) {
             const { data, timestamp } = JSON.parse(cachedGenres);
-            if (Date.now() - timestamp < LOCALSTORAGE_CACHE_TTL) {
-              console.log('Using cached genres from localStorage.');
-              genresData = data;
-            } else {
-              console.log('localStorage genre cache expired.');
-              localStorage.removeItem(LOCALSTORAGE_GENRE_CACHE_KEY);
+            if (Date.now() - timestamp < CACHE_CONFIG.GENRES.ttl) {
+              return data;
             }
-          } catch (e) {
-            console.error('Failed to parse localStorage genre cache:', e);
-            localStorage.removeItem(LOCALSTORAGE_GENRE_CACHE_KEY);
           }
-        }
-
-        if (!genresData) {
-          console.log('Fetching genres from database (via cachedQuery).');
-          genresData = await cachedQuery(
+          
+          const genres = await cachedQuery(
             'genres',
-            async () => {
-              const genres = await getGenres();
-              return genres;
-            },
-            5 * 60 * 1000 // 5 minutes in-memory cache TTL
+            async () => getGenres(),
+            5 * 60 * 1000
           );
-           // Store newly fetched genres in localStorage
-           try {
-             localStorage.setItem(LOCALSTORAGE_GENRE_CACHE_KEY, JSON.stringify({ data: genresData, timestamp: Date.now() }));
-             console.log('Genres fetched and stored in localStorage.');
-           } catch (e) {
-             console.error('Failed to save genres to localStorage:', e);
-           }
-        }
-        
+          
+          localStorage.setItem(CACHE_CONFIG.GENRES.key, 
+            JSON.stringify({ data: genres, timestamp: Date.now() })
+          );
+          
+          return genres;
+        })();
+
         setGenres(genresData);
-        // --- End Genre Data Fetching ---
-
-        // Fetch all links with cache
-        const allLinksData = await cachedQuery(
-          'all_links',
-          async () => {
-            const { data, error } = await supabase
-              .from('links')
-              .select('*')
-              .order('date_added', { ascending: false });
-
-            if (error) throw error;
-            return data;
-          },
-          2 * 60 * 1000 // 2 minutes cache
-        );
+        setHasMore(true);
         
-        if (allLinksData) {
-          const processedLinks = allLinksData.map(link => {
-            let username = link.username;
-            if (!username && user && link.user_id === user.id) {
-              username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'anonymous';
-            } else if (!username) {
-              username = 'anonymous';
-            }
-            return {
-              ...link,
-              type: link.type || 'generic',
-              username
-            };
-          });
-          allLinksRef.current = processedLinks;
-          updateDisplayedLinks(processedLinks);
-        } else {
-          console.log('No links data received');
-          setLinks([]);
-        }
+        // Fetch initial links
+        await fetchMoreLinks(1, ITEMS_PER_PAGE);
+        
       } catch (error) {
         console.error('Error fetching initial data:', error);
-        setError('Error loading data. Please try again.');
+        setError('Failed to load data. Please try again.');
       } finally {
         setLoading(false);
         isInitialLoadRef.current = false;
@@ -276,7 +244,7 @@ const HomeContent = memo(function HomeContent() {
     };
 
     fetchInitialData();
-  }, [updateDisplayedLinks]);
+  }, []); // Empty dependency array since this should only run once
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -335,19 +303,6 @@ const HomeContent = memo(function HomeContent() {
     const startIndex = rowIndex * 4;
     return links.slice(startIndex, startIndex + 4);
   };
-
-  useEffect(() => {
-    if (inView && hasMore && !isLoading) {
-      loadMoreLinks();
-    }
-  }, [inView, hasMore, isLoading]);
-
-  // Fetch combinations when in combinations view
-  useEffect(() => {
-    if (currentView === 'combinations') {
-      fetchCombinations();
-    }
-  }, [currentView, fetchCombinations]);
 
   const handleCreateCombination = async () => {
     if (!newCombinationName.trim()) return;
@@ -478,6 +433,18 @@ const HomeContent = memo(function HomeContent() {
     fetchInitialData();
   }, [updateDisplayedLinks]);
 
+  // Handle theme changes
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('theme-dracula', 'theme-catppuccin', 'theme-solarized', 'theme-monokai', 'theme-gruvbox');
+    root.classList.add(`theme-${currentTheme}`);
+  }, [currentTheme]);
+
+  const handleThemeChange = (theme: string) => {
+    setCurrentTheme(theme);
+    localStorage.setItem('theme', theme);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar 
@@ -495,7 +462,7 @@ const HomeContent = memo(function HomeContent() {
         onSignOut={signOut}
       />
       
-      <main className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <main className="container mx-auto px-0 py-6 sm:px-1 lg:px-2">
         <div className="flex flex-col space-y-6">
           {/* Genre Cloud - Only shown in genres view */}
           {currentView === 'genres' && (
@@ -530,24 +497,39 @@ const HomeContent = memo(function HomeContent() {
                   </p>
                 </div>
               )}
+              
+              {/* Loading State */}
+              {loading && <LoadingCards />}
+
+              {/* Links Grid */}
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Array.from(new Map(links.map(link => [link.id, link])).values()).map((link) => (
                   <DynamicLinkCard
-                    key={link.id}
+                    key={`${link.id}-${link.date_added}`}
                     link={link}
                     genres={genres}
-                    onUpdate={() => updateDisplayedLinks(allLinksRef.current)}
+                    onUpdate={() => {
+                      // Reset and fetch fresh data
+                      setLinks([]);
+                      setCurrentPage(1);
+                      setHasMore(true);
+                      fetchMoreLinks(1, ITEMS_PER_PAGE);
+                    }}
                   />
                 ))}
               </div>
+
+              {/* Loading More Indicator */}
+              {isLoading && !loading && (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              )}
+
+              {/* Load More Trigger */}
+              <div ref={loadMoreRef} className="h-10" />
             </div>
           )}
-
-          {/* Loading State */}
-          {loading && <LoadingCards />}
-
-          {/* Load More Trigger */}
-          <div ref={loadMoreRef} className="h-10" />
 
           {/* Combinations View - Only shown in combinations view */}
           {currentView === 'combinations' && (

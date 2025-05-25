@@ -159,36 +159,11 @@ const LinkCard = memo(function LinkCard({ link, genres, onUpdate }: LinkCardProp
 
   return (
     <Card ref={cardRef} className="flex flex-col h-full bg-background border-border">
-      <CardContent className="flex-1 p-4">
+      <CardContent className="flex-1 p-4 flex flex-col">
         {/* Title */}
         <h3 className="text-lg font-medium text-foreground line-clamp-2">
           {link.title}
         </h3>
-
-        {/* Genre, Date and Username */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">
-            {link.genre}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {formatDate(link.date_added)}
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {link.username}
-            </span>
-            {isOwner && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex-shrink-0"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
 
         {/* Embed Container */}
         <div className="relative w-full aspect-video mb-3 rounded-lg overflow-hidden">
@@ -213,21 +188,47 @@ const LinkCard = memo(function LinkCard({ link, genres, onUpdate }: LinkCardProp
           )}
         </div>
 
-        <Button
-          variant="outline"
-          className="w-full mt-auto"
-          onClick={() => setIsAddModalOpen(true)}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add to Combination
-        </Button>
+        {/* Genre, Date and Username */}
+        <div className="flex items-center justify-between mt-auto pt-2">
+          <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-full">
+            {link.genre}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            {formatDate(link.date_added)}
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {link.username}
+            </span>
+            {isOwner && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex-shrink-0"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+            )}
+            {/* Add to Combination Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="w-8 h-8"
+              onClick={() => setIsAddModalOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
       </CardContent>
 
       <AddToCombination
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         linkId={link.id}
-        onSuccess={() => onUpdate?.()}
+        onSuccess={() => toast({ title: "Added!", description: "Link added to combination." })}
       />
 
       <EditLinkDialog
