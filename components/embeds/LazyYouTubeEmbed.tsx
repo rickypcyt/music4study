@@ -128,7 +128,7 @@ const LazyYouTubeEmbed = memo(function LazyYouTubeEmbed({
         >
           <Image
             src={thumbnailUrl}
-            alt={title}
+            alt={title || 'YouTube video thumbnail'}
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

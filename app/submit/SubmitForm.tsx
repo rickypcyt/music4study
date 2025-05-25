@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,14 @@ interface SubmitFormProps {
     genres: { value: string; count: number }[];
 }
 
+// Memoized form components
+const MemoizedInput = memo(Input);
+const MemoizedSelect = memo(Select);
+const MemoizedSelectTrigger = memo(SelectTrigger);
+const MemoizedSelectContent = memo(SelectContent);
+const MemoizedSelectItem = memo(SelectItem);
+const MemoizedSelectValue = memo(SelectValue);
+
 function SubmitForm({ onClose, genres }: SubmitFormProps) {
     const { toast } = useToast();
     const router = useRouter();
@@ -39,16 +47,16 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
     });
     const [loading, setLoading] = useState(false);
 
-    const isValidUrl = (url: string) => {
+    const isValidUrl = useCallback((url: string) => {
         try {
             new URL(url);
             return true;
         } catch {
             return false;
         }
-    };
+    }, []);
 
-    const validateForm = () => {
+    const validateForm = useCallback(() => {
         const newErrors: FormErrors = {
             url: !formData.url
                 ? 'URL is required'
@@ -61,17 +69,17 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
 
         setErrors(newErrors);
         return !Object.values(newErrors).some(error => error !== null);
-    };
+    }, [formData, isValidUrl]);
 
-    const handleChange = (field: keyof typeof formData, value: string) => {
+    const handleChange = useCallback((field: keyof typeof formData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         // Clear error when user starts typing
         if (errors[field]) {
             setErrors(prev => ({ ...prev, [field]: null }));
         }
-    };
+    }, [errors]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = useCallback(async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validateForm()) return;
         if (!user) {
@@ -114,20 +122,18 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [formData, user, validateForm, toast, onClose, router]);
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <DialogHeader>
-                <DialogTitle>Submit a Track</DialogTitle>
-            </DialogHeader>
+
             <div className="space-y-8">
                 <div>
-                    <Input
+                    <MemoizedInput
                         placeholder="URL"
                         value={formData.url}
                         onChange={e => handleChange('url', e.target.value)}
-                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.url ? 'border-destructive' : ''}`}
+                        className={`bg-background text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.url ? 'border-destructive' : ''}`}
                     />
                     {errors.url && (
                         <p className="mt-1 text-destructive">{errors.url}</p>
@@ -135,40 +141,40 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                 </div>
 
                 <div>
-                    <Select
+                    <MemoizedSelect
                         value={formData.type}
                         onValueChange={(value) => handleChange('type', value)}
                     >
-                        <SelectTrigger className={`bg-background/50 border-border text-foreground ${errors.type ? 'border-destructive' : ''}`}>
-                            <SelectValue placeholder="Select a type" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background border-border">
-                            <SelectItem value="video">Video</SelectItem>
-                            <SelectItem value="mix">Mix</SelectItem>
-                            <SelectItem value="song">Song</SelectItem>
-                        </SelectContent>
-                    </Select>
+                        <MemoizedSelectTrigger className={`bg-background text-foreground ${errors.type ? 'border-destructive' : ''}`}>
+                            <MemoizedSelectValue placeholder="Select a type" />
+                        </MemoizedSelectTrigger>
+                        <MemoizedSelectContent className="bg-background border-border">
+                            <MemoizedSelectItem value="video">Video</MemoizedSelectItem>
+                            <MemoizedSelectItem value="mix">Mix</MemoizedSelectItem>
+                            <MemoizedSelectItem value="song">Song</MemoizedSelectItem>
+                        </MemoizedSelectContent>
+                    </MemoizedSelect>
                     {errors.type && (
                         <p className="mt-1 text-destructive">{errors.type}</p>
                     )}
                 </div>
 
                 <div>
-                    <Select
+                    <MemoizedSelect
                         value={formData.genre}
                         onValueChange={(value) => handleChange('genre', value)}
                     >
-                        <SelectTrigger className={`bg-background/50 border-border text-foreground ${errors.genre ? 'border-destructive' : ''}`}>
-                            <SelectValue placeholder="Select a genre" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background border-border">
+                        <MemoizedSelectTrigger className={`bg-background text-foreground ${errors.genre ? 'border-destructive' : ''}`}>
+                            <MemoizedSelectValue placeholder="Select a genre" />
+                        </MemoizedSelectTrigger>
+                        <MemoizedSelectContent className="bg-background border-border">
                             {genres.map((genre) => (
-                                <SelectItem key={genre.value} value={genre.value}>
+                                <MemoizedSelectItem key={genre.value} value={genre.value}>
                                     {genre.value}
-                                </SelectItem>
+                                </MemoizedSelectItem>
                             ))}
-                        </SelectContent>
-                    </Select>
+                        </MemoizedSelectContent>
+                    </MemoizedSelect>
                     {errors.genre && (
                         <p className="mt-1 text-destructive">{errors.genre}</p>
                     )}
@@ -186,4 +192,4 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
     );
 }
 
-export default SubmitForm;
+export default memo(SubmitForm);

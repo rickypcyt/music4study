@@ -3,22 +3,24 @@
 import { supabase, cachedQuery } from '@/lib/supabase';
 import Navbar from '@/components/ui/Navbar';
 import { useEffect, useState, useRef, useCallback, Suspense, memo } from 'react';
-import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
-import GenreCloud from '@/components/ui/GenreCloud';
 import { getGenres } from './genres/actions';
 import { useRouter, useSearchParams } from 'next/navigation';
-import SubmitForm from './submit/SubmitForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useInView } from 'react-intersection-observer';
 import { useAuth } from '@/hooks/useAuth';
-import UsernameDialog from '@/components/UsernameDialog';
+import { Popup } from '@/components/ui/Popup';
+import { DynamicGenreCloud, DynamicSubmitForm, DynamicUsernameDialog, DynamicLinkCard } from '@/lib/dynamicImports';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const ITEMS_PER_PAGE = 12;
+
+// localStorage Cache Config
+const LOCALSTORAGE_GENRE_CACHE_KEY = 'cached_genres';
+const LOCALSTORAGE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 interface Link {
   id: string;
@@ -80,6 +82,7 @@ const HomeContent = memo(function HomeContent() {
   const { user, signInWithGoogle, signOut, showUsernameDialog, setShowUsernameDialog } = useAuth();
 
   const selectedGenre = searchParams.get('genre');
+  const [displayedGenreName, setDisplayedGenreName] = useState<string | null>(null);
 
   // Memoize the updateDisplayedLinks function
   const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
@@ -186,16 +189,47 @@ const HomeContent = memo(function HomeContent() {
       try {
         console.log('Fetching initial data...');
         
-        // Fetch genres with cache
-        const genresData = await cachedQuery(
-          'genres',
-          async () => {
-            const genres = await getGenres();
-            return genres;
-          },
-          5 * 60 * 1000 // 5 minutes cache
-        );
+        // --- Genre Data Fetching with localStorage Cache ---
+        let genresData = null;
+        const cachedGenres = localStorage.getItem(LOCALSTORAGE_GENRE_CACHE_KEY);
+
+        if (cachedGenres) {
+          try {
+            const { data, timestamp } = JSON.parse(cachedGenres);
+            if (Date.now() - timestamp < LOCALSTORAGE_CACHE_TTL) {
+              console.log('Using cached genres from localStorage.');
+              genresData = data;
+            } else {
+              console.log('localStorage genre cache expired.');
+              localStorage.removeItem(LOCALSTORAGE_GENRE_CACHE_KEY);
+            }
+          } catch (e) {
+            console.error('Failed to parse localStorage genre cache:', e);
+            localStorage.removeItem(LOCALSTORAGE_GENRE_CACHE_KEY);
+          }
+        }
+
+        if (!genresData) {
+          console.log('Fetching genres from database (via cachedQuery).');
+          genresData = await cachedQuery(
+            'genres',
+            async () => {
+              const genres = await getGenres();
+              return genres;
+            },
+            5 * 60 * 1000 // 5 minutes in-memory cache TTL
+          );
+           // Store newly fetched genres in localStorage
+           try {
+             localStorage.setItem(LOCALSTORAGE_GENRE_CACHE_KEY, JSON.stringify({ data: genresData, timestamp: Date.now() }));
+             console.log('Genres fetched and stored in localStorage.');
+           } catch (e) {
+             console.error('Failed to save genres to localStorage:', e);
+           }
+        }
+        
         setGenres(genresData);
+        // --- End Genre Data Fetching ---
 
         // Fetch all links with cache
         const allLinksData = await cachedQuery(
@@ -348,11 +382,15 @@ const HomeContent = memo(function HomeContent() {
 
   const handleGenreClick = (genre: string) => {
     setCurrentView('home');
+    setDisplayedGenreName(genre);
+    // Explicitly update displayed links with the new filter
+    updateDisplayedLinks(allLinksRef.current); 
     router.push(`/?genre=${encodeURIComponent(genre)}`);
   };
 
   const handleHomeClick = () => {
     setCurrentView('home');
+    setDisplayedGenreName(null);
     router.push('/');
   };
 
@@ -441,7 +479,7 @@ const HomeContent = memo(function HomeContent() {
   }, [updateDisplayedLinks]);
 
   return (
-    <div className="app-container">
+    <div className="min-h-screen bg-background">
       <Navbar 
         currentView={currentView}
         onGenresClick={handleGenresClick}
@@ -457,163 +495,149 @@ const HomeContent = memo(function HomeContent() {
         onSignOut={signOut}
       />
       
-      <main className="w-full px-2 sm:px-4 lg:px-3 py-6">
-        {currentView === 'genres' ? (
-          <>
-            <div className="text-center mb-1">
-              <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">Genres</h1>
-              <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
-                Explore music by genre. Each genre has its own unique characteristics and mood.
-              </p>
-            </div>
-            <div className="flex justify-center items-center min-h-[60vh]">
-              <GenreCloud 
-                tags={genres} 
-                onGenreClick={handleGenreClick}
-              />
-            </div>
-          </>
-        ) : currentView === 'combinations' ? (
-          <>
-            <div className="space-y-8">
-              <div className="text-center">
-                <h2 className="text-5xl font-serif text-foreground mb-2">Combinations</h2>
-                <p className="text-foreground/70 text-lg">
-                  Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
+      <main className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col space-y-6">
+          {/* Genre Cloud - Only shown in genres view */}
+          {currentView === 'genres' && (
+            <div className="w-full">
+              <div className="text-center mb-6">
+                <h1 className="text-4xl font-serif text-foreground mb-4 tracking-wide">
+                  Browse by Genre
+                </h1>
+                <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed">
+                  Click on a genre to explore music in that category
                 </p>
               </div>
-              <div className="flex justify-center">
-                <Button
-                  onClick={() => setIsCreateCombinationModalOpen(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 py-6"
-                >
-                  Create Combination
-                </Button>
+              <div className="w-full h-[700px] sm:h-[600px] relative">
+                <DynamicGenreCloud 
+                  genres={genres} 
+                  onGenreClick={handleGenreClick} 
+                />
               </div>
-              <div className="grid gap-8">
-                {combinations.map((combination) => (
-                  <div key={combination.id} className="space-y-6 p-6 border border-foreground/10 rounded-lg">
-                    <h2 className="text-2xl font-serif text-foreground">
-                      {combination.name}
-                    </h2>
-                    {combination.links.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {combination.links.map((link) => (
-                          <LinkCard key={link.id} link={link} genres={genres} onUpdate={handleUpdate} />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-foreground/70">No tracks in this combination yet.</p>
-                    )}
-                  </div>
+            </div>
+          )}
+
+          {/* Main Content - Only shown in home view */}
+          {currentView === 'home' && (
+            <div className="flex flex-col space-y-6">
+              {displayedGenreName && (
+                <div className="text-center mb-6">
+                  <h2 className="text-3xl font-serif text-foreground mb-2 tracking-wide">
+                    {displayedGenreName} Music
+                  </h2>
+                  <p className="text-foreground/70 max-w-2xl mx-auto text-lg leading-relaxed">
+                    Explore {displayedGenreName} songs and mixes below.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {Array.from(new Map(links.map(link => [link.id, link])).values()).map((link) => (
+                  <DynamicLinkCard
+                    key={link.id}
+                    link={link}
+                    genres={genres}
+                    onUpdate={() => updateDisplayedLinks(allLinksRef.current)}
+                  />
                 ))}
               </div>
             </div>
-          </>
-        ) : (
-          <>
-            {selectedGenre && (
-              <div className="text-center mb-1">
-                <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide pt-6">
-                  {selectedGenre} Music
+          )}
+
+          {/* Loading State */}
+          {loading && <LoadingCards />}
+
+          {/* Load More Trigger */}
+          <div ref={loadMoreRef} className="h-10" />
+
+          {/* Combinations View - Only shown in combinations view */}
+          {currentView === 'combinations' && (
+            <div className="w-full">
+              <div className="text-center mb-6">
+                <h1 className="text-4xl font-serif text-foreground mb-4 tracking-wide">
+                  Your Combinations
                 </h1>
-                <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
-                  Explore our collection of {selectedGenre.toLowerCase()} music for studying.
+                <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed">
+                  Manage and view your curated music combinations
                 </p>
               </div>
-            )}
-
-            {loading ? (
-              <div className="min-h-[60vh] flex items-center justify-center">
-                <LoadingCards />
-              </div>
-            ) : links.length > 0 ? (
-              <div 
-                ref={parentRef}
-                className="h-[calc(100vh-12rem)] overflow-y-auto"
-              >
-                <div
-                  style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const rowLinks = getRowLinks(virtualRow.index);
-                      return (
-                        <div
-                          key={virtualRow.index}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: `${virtualRow.size}px`,
-                            transform: `translateY(${virtualRow.start}px)`,
-                          }}
-                          className="px-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-                        >
-                          {rowLinks.map((link) => (
-                            <LinkCard 
-                              key={link.id} 
-                              link={link} 
+              <div className="space-y-4">
+                {combinations.length === 0 ? (
+                  <p className="text-center text-muted-foreground">No combinations created yet.</p>
+                ) : (
+                  combinations.map((combination) => (
+                    <div key={combination.id} className="border rounded-md p-4 bg-card text-card-foreground shadow-sm">
+                      <h2 className="text-xl font-semibold mb-2">{combination.name}</h2>
+                      {combination.links.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">No tracks in this combination yet.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {combination.links.map((link) => (
+                            <DynamicLinkCard
+                              key={link.id}
+                              link={link}
                               genres={genres}
-                              onUpdate={handleUpdate}
+                              // onUpdate prop might be needed here if editing links within combinations should refetch data
+                              // onUpdate={() => fetchCombinations()}
                             />
                           ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div ref={loadMoreRef} className="h-4" />
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
-            ) : (
-              <div className="text-center text-foreground/70 py-12">
-                No tracks found. Be the first to add one!
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          )}
+        </div>
       </main>
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
-          <SubmitForm onClose={() => setIsSubmitModalOpen(false)} genres={genres} />
+        <DialogContent className="bg-background border-border">
+          <DialogHeader>
+            <DialogTitle>Submit Track</DialogTitle>
+          </DialogHeader>
+          <DynamicSubmitForm onClose={() => setIsSubmitModalOpen(false)} genres={genres} />
         </DialogContent>
       </Dialog>
 
       <Dialog open={isCreateCombinationModalOpen} onOpenChange={setIsCreateCombinationModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogContent className="bg-background border-border">
           <DialogHeader>
             <DialogTitle>Create New Combination</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); handleCreateCombination(); }} className="space-y-4">
             <Input
               placeholder="Combination name"
               value={newCombinationName}
               onChange={(e) => setNewCombinationName(e.target.value)}
-              className="bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500"
+              className="bg-background border-border"
             />
-            <Button
-              onClick={handleCreateCombination}
-              disabled={!newCombinationName.trim()}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white"
-            >
-              Create Combination
-            </Button>
-          </div>
+            <div className="flex justify-end">
+              <Button
+                type="submit"
+                disabled={!newCombinationName.trim()}
+                className="bg-primary hover:bg-primary/90"
+              >
+                Create
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
       {user && (
-        <UsernameDialog
-          isOpen={showUsernameDialog}
-          onClose={() => setShowUsernameDialog(false)}
-          userId={user.id}
-        />
+        <Dialog open={showUsernameDialog} onOpenChange={setShowUsernameDialog}>
+          <DialogContent className="bg-background border-border">
+            <DialogHeader>
+              <DialogTitle>Set Username</DialogTitle>
+            </DialogHeader>
+            <DynamicUsernameDialog
+              isOpen={showUsernameDialog}
+              onClose={() => setShowUsernameDialog(false)}
+              userId={user.id}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

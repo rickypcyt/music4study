@@ -33,6 +33,39 @@ export const DynamicSpotifyEmbed = dynamic(
   }
 );
 
+// Add more dynamic imports for heavy components
+export const DynamicGenreCloud = dynamic(
+  () => import('@/components/ui/GenreCloud'),
+  {
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  }
+);
+
+export const DynamicSubmitForm = dynamic(
+  () => import('@/app/submit/SubmitForm'),
+  {
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  }
+);
+
+export const DynamicUsernameDialog = dynamic(
+  () => import('@/components/UsernameDialog'),
+  {
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  }
+);
+
+export const DynamicLinkCard = dynamic(
+  () => import('@/components/LinkCard'),
+  {
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  }
+);
+
 // Utility function for lazy loading images
 export const lazyLoadImage = (src: string): Promise<void> => {
   return new Promise((resolve, reject) => {
