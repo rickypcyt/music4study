@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo, useCallback } from 'react';
 import Image from 'next/image';
 
 interface LazyYouTubeEmbedProps {
@@ -9,7 +9,7 @@ interface LazyYouTubeEmbedProps {
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
 }
 
-export default function LazyYouTubeEmbed({ 
+const LazyYouTubeEmbed = memo(function LazyYouTubeEmbed({ 
   videoId, 
   title,
   thumbnailQuality = 'hqdefault' 
@@ -17,13 +17,33 @@ export default function LazyYouTubeEmbed({
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/${thumbnailQuality}.jpg`;
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`;
 
   useEffect(() => {
-    if (!isLoaded) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const element = document.getElementById(`youtube-embed-${videoId}`);
+    if (element) {
+      observer.observe(element);
+    }
+
+    return () => observer.disconnect();
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!isLoaded || !isVisible) return;
 
     const checkEmbed = async () => {
       try {
@@ -38,12 +58,16 @@ export default function LazyYouTubeEmbed({
     };
 
     checkEmbed();
-  }, [isLoaded, videoId]);
+  }, [isLoaded, videoId, isVisible]);
 
-  const handleIframeError = () => {
+  const handleIframeError = useCallback(() => {
     setIsBlocked(true);
     setLoadError(true);
-  };
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    setIsLoaded(true);
+  }, []);
 
   if (isBlocked || loadError) {
     return (
@@ -93,11 +117,14 @@ export default function LazyYouTubeEmbed({
   }
 
   return (
-    <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+    <div 
+      id={`youtube-embed-${videoId}`}
+      className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden"
+    >
       {!isLoaded ? (
         <div 
           className="relative w-full h-full cursor-pointer"
-          onClick={() => setIsLoaded(true)}
+          onClick={handleLoad}
         >
           <Image
             src={thumbnailUrl}
@@ -105,6 +132,8 @@ export default function LazyYouTubeEmbed({
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            priority={false}
+            loading="lazy"
           />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center">
@@ -126,11 +155,12 @@ export default function LazyYouTubeEmbed({
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           onError={handleIframeError}
+          loading="lazy"
         />
       )}
     </div>
   );
-}
+});
 
 // Utility function to extract YouTube video ID from various URL formats
 export function extractYouTubeId(url: string): string | null {
@@ -147,4 +177,6 @@ export function extractYouTubeId(url: string): string | null {
     }
   }
   return null;
-} 
+}
+
+export default LazyYouTubeEmbed; 

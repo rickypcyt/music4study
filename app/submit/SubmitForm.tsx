@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/hooks/useAuth';
+import { DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type FieldError = string | null;
 
@@ -14,7 +16,6 @@ interface FormErrors {
     url: FieldError;
     type: FieldError;
     genre: FieldError;
-    username: FieldError;
 }
 
 interface SubmitFormProps {
@@ -25,17 +26,16 @@ interface SubmitFormProps {
 function SubmitForm({ onClose, genres }: SubmitFormProps) {
     const { toast } = useToast();
     const router = useRouter();
+    const { user } = useAuth();
     const [formData, setFormData] = useState({
         url: '',
         type: '',
-        genre: '',
-        username: ''
+        genre: ''
     });
     const [errors, setErrors] = useState<FormErrors>({
         url: null,
         type: null,
-        genre: null,
-        username: null
+        genre: null
     });
     const [loading, setLoading] = useState(false);
 
@@ -56,8 +56,7 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                     ? 'Please enter a valid URL'
                     : null,
             type: !formData.type ? 'Type is required' : null,
-            genre: !formData.genre ? 'Genre is required' : null,
-            username: !formData.username ? 'Name is required' : null
+            genre: !formData.genre ? 'Genre is required' : null
         };
 
         setErrors(newErrors);
@@ -75,6 +74,14 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validateForm()) return;
+        if (!user) {
+            toast({
+                title: "Error",
+                description: "You must be signed in to submit a track.",
+                variant: "destructive",
+            });
+            return;
+        }
 
         setLoading(true);
         try {
@@ -84,7 +91,7 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                     url: formData.url,
                     type: formData.type,
                     genre: formData.genre,
-                    username: formData.username,
+                    user_id: user.id,
                     date_added: new Date().toISOString()
                 }]);
 
@@ -111,6 +118,9 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
+            <DialogHeader>
+                <DialogTitle>Submit a Track</DialogTitle>
+            </DialogHeader>
             <div className="space-y-8">
                 <div>
                     <Input
@@ -125,12 +135,19 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                 </div>
 
                 <div>
-                    <Input
-                        placeholder="Type (e.g., Video, Mix, Song)"
+                    <Select
                         value={formData.type}
-                        onChange={e => handleChange('type', e.target.value)}
-                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.type ? 'border-destructive' : ''}`}
-                    />
+                        onValueChange={(value) => handleChange('type', value)}
+                    >
+                        <SelectTrigger className={`bg-background/50 border-border text-foreground ${errors.type ? 'border-destructive' : ''}`}>
+                            <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background border-border">
+                            <SelectItem value="video">Video</SelectItem>
+                            <SelectItem value="mix">Mix</SelectItem>
+                            <SelectItem value="song">Song</SelectItem>
+                        </SelectContent>
+                    </Select>
                     {errors.type && (
                         <p className="mt-1 text-destructive">{errors.type}</p>
                     )}
@@ -154,19 +171,6 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
                     </Select>
                     {errors.genre && (
                         <p className="mt-1 text-destructive">{errors.genre}</p>
-                    )}
-                </div>
-
-                <div>
-                    <Input
-                        placeholder="Your name"
-                        value={formData.username}
-                        onChange={e => handleChange('username', e.target.value)}
-                        className={`bg-background/50 border-border text-foreground placeholder:text-muted-foreground focus:ring-primary focus:border-primary ${errors.username ? 'border-destructive' : ''}`}
-                        maxLength={50}
-                    />
-                    {errors.username && (
-                        <p className="mt-1 text-destructive">{errors.username}</p>
                     )}
                 </div>
             </div>

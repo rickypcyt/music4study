@@ -1,8 +1,8 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
+import { supabase, cachedQuery } from '@/lib/supabase';
 import Navbar from '@/components/ui/Navbar';
-import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
+import { useEffect, useState, useRef, useCallback, Suspense, memo } from 'react';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import GenreCloud from '@/components/ui/GenreCloud';
@@ -13,6 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/hooks/use-toast';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useInView } from 'react-intersection-observer';
+import { useAuth } from '@/hooks/useAuth';
+import UsernameDialog from '@/components/UsernameDialog';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -36,7 +40,7 @@ interface CombinationWithLinks extends Combination {
   links: Link[];
 }
 
-function HomeContent() {
+const HomeContent = memo(function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -65,10 +69,19 @@ function HomeContent() {
   const isInitialLoadRef = useRef(true);
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
+  const { ref: loadMoreRef, inView } = useInView({
+    threshold: 0,
+    triggerOnce: false,
+  });
+  const { user, signInWithGoogle, signOut, showUsernameDialog, setShowUsernameDialog } = useAuth();
 
   const selectedGenre = searchParams.get('genre');
 
+  // Memoize the updateDisplayedLinks function
   const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
     console.log('Updating displayed links...');
     console.log('All links:', allLinks.length);
@@ -80,7 +93,6 @@ function HomeContent() {
     // Apply genre filter if selected
     if (selectedGenre) {
       filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
-      console.log('Filtered links by genre:', filteredLinks.length);
     }
 
     // Apply sorting
@@ -97,9 +109,51 @@ function HomeContent() {
       }
     });
 
-    // Update state with all filtered links
     setLinks(filteredLinks);
   }, [selectedGenre, currentSort]);
+
+  // Memoize the fetchMoreLinks function with cache
+  const fetchMoreLinks = useCallback(async (page: number, limit: number) => {
+    return cachedQuery(
+      `links_page_${page}_${limit}`,
+      async () => {
+        const { data: newLinks, error } = await supabase
+          .from('links')
+          .select('*')
+          .order('date_added', { ascending: false })
+          .range((page - 1) * limit, page * limit - 1);
+
+        if (error) throw error;
+        return newLinks || [];
+      },
+      2 * 60 * 1000 // 2 minutes cache
+    );
+  }, []);
+
+  // Memoize the loadMoreLinks function
+  const loadMoreLinks = useCallback(async () => {
+    if (!hasMore || isLoading) return;
+
+    setIsLoading(true);
+    try {
+      const newLinks = await fetchMoreLinks(currentPage, ITEMS_PER_PAGE);
+      if (newLinks.length > 0) {
+        setLinks(prevLinks => [...prevLinks, ...newLinks]);
+        setCurrentPage(prevPage => prevPage + 1);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error('Error loading more links:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load more links. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [hasMore, isLoading, currentPage, fetchMoreLinks, toast]);
 
   // Update current sort when URL changes
   useEffect(() => {
@@ -121,7 +175,7 @@ function HomeContent() {
     localStorage.setItem('theme', theme);
   };
 
-  // Fetch all data on initial load
+  // Fetch all data on initial load with cache
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!isInitialLoadRef.current) return;
@@ -132,31 +186,46 @@ function HomeContent() {
       try {
         console.log('Fetching initial data...');
         
-        // Fetch genres
-        const genresData = await getGenres();
-        console.log('Genres fetched:', genresData);
+        // Fetch genres with cache
+        const genresData = await cachedQuery(
+          'genres',
+          async () => {
+            const genres = await getGenres();
+            return genres;
+          },
+          5 * 60 * 1000 // 5 minutes cache
+        );
         setGenres(genresData);
 
-        // Fetch all links
-        console.log('Fetching links...');
-        const { data: allLinksData, error: linksError } = await supabase
-          .from('links')
-          .select('*')
-          .order('date_added', { ascending: false });
+        // Fetch all links with cache
+        const allLinksData = await cachedQuery(
+          'all_links',
+          async () => {
+            const { data, error } = await supabase
+              .from('links')
+              .select('*')
+              .order('date_added', { ascending: false });
 
-        if (linksError) {
-          throw linksError;
-        }
-
-        console.log('Links fetched:', allLinksData?.length || 0, 'links');
+            if (error) throw error;
+            return data;
+          },
+          2 * 60 * 1000 // 2 minutes cache
+        );
         
         if (allLinksData) {
-          // Add default values for missing properties
-          const processedLinks = allLinksData.map(link => ({
-            ...link,
-            type: link.type || 'generic',
-            username: link.username || 'anonymous'
-          }));
+          const processedLinks = allLinksData.map(link => {
+            let username = link.username;
+            if (!username && user && link.user_id === user.id) {
+              username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'anonymous';
+            } else if (!username) {
+              username = 'anonymous';
+            }
+            return {
+              ...link,
+              type: link.type || 'generic',
+              username
+            };
+          });
           allLinksRef.current = processedLinks;
           updateDisplayedLinks(processedLinks);
         } else {
@@ -219,31 +288,25 @@ function HomeContent() {
     updateDisplayedLinks(allLinksRef.current);
   }, [selectedGenre, currentSort, updateDisplayedLinks]);
 
-  // Set up intersection observer for infinite scroll
+  // Configurar virtualización
+  const rowVirtualizer = useVirtualizer({
+    count: Math.ceil(links.length / 4), // Dividir por el número máximo de columnas
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 400, // Altura estimada de cada fila
+    overscan: 5, // Número de elementos a renderizar fuera de la vista
+  });
+
+  // Función para obtener los enlaces de una fila
+  const getRowLinks = (rowIndex: number) => {
+    const startIndex = rowIndex * 4;
+    return links.slice(startIndex, startIndex + 4);
+  };
+
   useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting && !isLoadingMore && links.length > displayedCount) {
-          setIsLoadingMore(true);
-          setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
-          setIsLoadingMore(false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (currentRef) {
-      observer.observe(currentRef);
+    if (inView && hasMore && !isLoading) {
+      loadMoreLinks();
     }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [links.length, displayedCount, isLoadingMore]);
+  }, [inView, hasMore, isLoading]);
 
   // Fetch combinations when in combinations view
   useEffect(() => {
@@ -313,22 +376,69 @@ function HomeContent() {
     router.push(`/?${newParams.toString()}`);
   };
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
-        <div className="text-center text-[#e6e2d9]">
-          <h2 className="text-2xl mb-4">Error</h2>
-          <p>{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 rounded"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleUpdate = useCallback(() => {
+    // Refetch data after update
+    const fetchInitialData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch genres with cache
+        const genresData = await cachedQuery(
+          'genres',
+          async () => {
+            const genres = await getGenres();
+            return genres;
+          },
+          5 * 60 * 1000 // 5 minutes cache
+        );
+        setGenres(genresData);
+
+        // Fetch all links with cache
+        const allLinksData = await cachedQuery(
+          'all_links',
+          async () => {
+            const { data, error } = await supabase
+              .from('links')
+              .select('*')
+              .order('date_added', { ascending: false });
+
+            if (error) throw error;
+            return data;
+          },
+          2 * 60 * 1000 // 2 minutes cache
+        );
+        
+        if (allLinksData) {
+          const processedLinks = allLinksData.map(link => {
+            let username = link.username;
+            if (!username && user && link.user_id === user.id) {
+              username = user.user_metadata?.full_name || user.email?.split('@')[0] || 'anonymous';
+            } else if (!username) {
+              username = 'anonymous';
+            }
+            return {
+              ...link,
+              type: link.type || 'generic',
+              username
+            };
+          });
+          allLinksRef.current = processedLinks;
+          updateDisplayedLinks(processedLinks);
+        } else {
+          console.log('No links data received');
+          setLinks([]);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        setError('Error loading data. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [updateDisplayedLinks]);
 
   return (
     <div className="app-container">
@@ -342,6 +452,9 @@ function HomeContent() {
         currentSort={currentSort}
         onThemeChange={handleThemeChange}
         currentTheme={currentTheme}
+        user={user}
+        onSignIn={signInWithGoogle}
+        onSignOut={signOut}
       />
       
       <main className="w-full px-2 sm:px-4 lg:px-3 py-6">
@@ -384,9 +497,9 @@ function HomeContent() {
                       {combination.name}
                     </h2>
                     {combination.links.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {combination.links.map((link) => (
-                          <LinkCard key={link.id} link={link} />
+                          <LinkCard key={link.id} link={link} genres={genres} onUpdate={handleUpdate} />
                         ))}
                       </div>
                     ) : (
@@ -415,22 +528,48 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {links.slice(0, displayedCount).map((link) => (
-                    <LinkCard key={link.id} link={link} />
-                  ))}
-                </div>
-                {links.length > displayedCount && (
-                  <div ref={loadMoreRef} className="flex justify-center mt-8">
-                    {isLoadingMore ? (
-                      <LoadingCards />
-                    ) : (
-                      <div className="text-foreground/70">Loading more...</div>
-                    )}
+              <div 
+                ref={parentRef}
+                className="h-[calc(100vh-12rem)] overflow-y-auto"
+              >
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const rowLinks = getRowLinks(virtualRow.index);
+                      return (
+                        <div
+                          key={virtualRow.index}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${virtualRow.size}px`,
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                          className="px-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                        >
+                          {rowLinks.map((link) => (
+                            <LinkCard 
+                              key={link.id} 
+                              link={link} 
+                              genres={genres}
+                              onUpdate={handleUpdate}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </>
+                </div>
+                <div ref={loadMoreRef} className="h-4" />
+              </div>
             ) : (
               <div className="text-center text-foreground/70 py-12">
                 No tracks found. Be the first to add one!
@@ -468,9 +607,17 @@ function HomeContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {user && (
+        <UsernameDialog
+          isOpen={showUsernameDialog}
+          onClose={() => setShowUsernameDialog(false)}
+          userId={user.id}
+        />
+      )}
     </div>
   );
-}
+});
 
 export default function Home() {
   return (

@@ -1,6 +1,14 @@
 'use client';
 
+import { User } from '@supabase/supabase-js';
 import { Button } from './button';
+import { Avatar, AvatarFallback, AvatarImage } from './avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './dropdown-menu';
 import { Home, Tags, Layers, ArrowUpDown, Sun, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -20,6 +28,9 @@ interface NavbarProps {
   currentSort: string;
   onThemeChange: (theme: string) => void;
   currentTheme: string;
+  user: User | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
 export default function Navbar({
@@ -32,6 +43,9 @@ export default function Navbar({
   currentSort,
   onThemeChange,
   currentTheme,
+  user,
+  onSignIn,
+  onSignOut,
 }: NavbarProps) {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -142,8 +156,33 @@ export default function Navbar({
           <div className="absolute left-1/2 transform -translate-x-1/2">
             <h1 className="text-2xl sm:text-3xl font-mono text-foreground tracking-wider pt-4 font-light">Music4Study</h1>
           </div>
-          <div className="hidden sm:flex">
+          <div className="hidden sm:flex items-center space-x-4">
             <ControlButtons />
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ''} />
+                      <AvatarFallback>{user.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuItem onClick={onSignOut}>
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                onClick={onSignIn}
+                variant="ghost"
+                className="text-foreground/70 hover:text-foreground"
+              >
+                Sign in
+              </Button>
+            )}
           </div>
         </div>
       </div>

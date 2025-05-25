@@ -1,13 +1,18 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { Spotify } from 'react-spotify-embed';
+import LazyYouTubeEmbed from './embeds/LazyYouTubeEmbed';
+import { extractYouTubeId } from './embeds/LazyYouTubeEmbed';
+import { useEmbed } from '@/hooks/useEmbed';
+import { useAuth } from '@/hooks/useAuth';
+import EditLinkDialog from './EditLinkDialog';
 
 interface Link {
   id: string;
@@ -21,6 +26,8 @@ interface Link {
 
 interface LinkCardProps {
   link: Link;
+  genres: { value: string; count: number }[];
+  onUpdate?: () => void;
 }
 
 interface Combination {
@@ -28,17 +35,43 @@ interface Combination {
   name: string;
 }
 
-export default function LinkCard({ link }: LinkCardProps) {
+const LinkCard = memo(function LinkCard({ link, genres, onUpdate }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState("");
   const [combinations, setCombinations] = useState<Combination[]>([]);
   const [selectedCombination, setSelectedCombination] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const { user } = useAuth();
+
+  const isOwner = user?.email === link.username;
+
+  // Intersection Observer para lazy loading
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
 
   const fetchCombinations = useCallback(async () => {
+    if (!isAddModalOpen) return;
+    
     try {
       const { data, error } = await supabase
         .from('combinations')
@@ -55,7 +88,7 @@ export default function LinkCard({ link }: LinkCardProps) {
         variant: "destructive",
       });
     }
-  }, [toast]);
+  }, [isAddModalOpen, toast]);
 
   useEffect(() => {
     if (isAddModalOpen) {
@@ -156,170 +189,210 @@ export default function LinkCard({ link }: LinkCardProps) {
   const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
   const isSoundCloud = link.url.includes('soundcloud.com');
   
-  const getYouTubeEmbedUrl = (url: string) => {
-    let videoId;
-    
-    if (url.includes('youtu.be')) {
-      // Handle youtu.be format
-      videoId = url.split('youtu.be/')[1]?.split(/[?&]/)[0];
-    } else if (url.includes('youtube.com')) {
-      // Handle youtube.com format
-      videoId = url.split('v=')[1]?.split(/[?&]/)[0];
-    }
-    
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-  };
+  const { embedUrl, isLoading, error, thumbnailUrl } = useEmbed({
+    url: link.url,
+    type: isYouTube ? 'youtube' : isSpotify ? 'spotify' : 'soundcloud',
+  });
 
-  const getSoundCloudEmbedUrl = (url: string) => {
-    return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true`;
-  };
-
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
     });
+  }, []);
+
+  const renderEmbed = useCallback(() => {
+    if (isLoading) {
+      return (
+        <div className="w-full aspect-video bg-gray-100 rounded-lg animate-pulse" />
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="w-full aspect-video bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
+          Failed to load embed
+        </div>
+      );
+    }
+
+    if (isSpotify) {
+      return (
+        <div className="pt-4">
+          <div className="aspect-video relative">
+            <div className="absolute inset-0">
+              <Spotify 
+                wide
+                link={link.url}
+                style={{ height: '100%' }}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    } else if (isYouTube && embedUrl) {
+      const videoId = extractYouTubeId(link.url);
+      if (!videoId) return null;
+      return (
+        <div className="pt-4">
+          <LazyYouTubeEmbed
+            videoId={videoId}
+            title={link.title || 'YouTube Video'}
+            thumbnailQuality="hqdefault"
+          />
+        </div>
+      );
+    } else if (isSoundCloud && embedUrl) {
+      return (
+        <div className="pt-4">
+          <iframe
+            src={embedUrl}
+            className="w-full aspect-[16/9]"
+            scrolling="no"
+            frameBorder="no"
+            allow="autoplay"
+            loading="lazy"
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full aspect-[16/10] bg-gray-100 flex items-center justify-center text-gray-500">
+        Unsupported URL format
+      </div>
+    );
+  }, [isLoading, error, isSpotify, isYouTube, isSoundCloud, embedUrl, link.url, link.title]);
+
+  const handleDoubleClick = () => {
+    if (isOwner) {
+      setIsEditModalOpen(true);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (isOwner) {
+      e.preventDefault();
+      setIsEditModalOpen(true);
+    }
   };
 
   return (
-    <>
-      <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300" ref={cardRef}>
-        <CardContent className="p-2">
-          {isSpotify ? (
-            <div className="pt-4">
-              <div className="aspect-video relative">
-                <div className="absolute inset-0">
-                  <Spotify 
-                    wide
-                    link={link.url}
-                    style={{ height: '100%' }}
-                  />
+    <div 
+      ref={cardRef} 
+      className="relative"
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
+    >
+      {isVisible ? (
+        <div className="card-content">
+          <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300">
+            <CardContent className="p-2">
+              {renderEmbed()}
+              <div className="p-4">
+                <h3 className="font-medium text-foreground mb-3 line-clamp-2">{link.title}</h3>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-foreground/70">
+                    <span>{link.username}</span>
+                    <span>•</span>
+                    <span>{link.genre}</span>
+                    <span>•</span>
+                    <span>{formatDate(link.date_added)}</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="transition-opacity hover:bg-foreground/10"
+                    onClick={() => setIsAddModalOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            </div>
-          ) : isYouTube ? (
-            <div className="pt-4">
-              <iframe
-                src={getYouTubeEmbedUrl(link.url)}
-                className="w-full aspect-[16/9]"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-              />
-            </div>
-          ) : isSoundCloud ? (
-            <div className="pt-4">
-              <iframe
-                src={getSoundCloudEmbedUrl(link.url)}
-                className="w-full aspect-[16/9]"
-                scrolling="no"
-                frameBorder="no"
-                allow="autoplay"
-                loading="lazy"
-              />
-            </div>
-          ) : (
-            <div className="w-full aspect-[16/10] bg-gray-100 flex items-center justify-center text-gray-500">
-              Unsupported URL format
-            </div>
-          )}
-          <div className="p-4 space-y-3">
-            <h3 className="font-semibold text-lg text-[#e6e2d9] line-clamp-2">{link.title}</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="px-2 py-1 text-xs font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
-                  {link.genre}
-                </span>
-                <span className="px-2 py-1 text-xs font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
-                  {link.type}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10">
-              <span className="text-xs text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
-              <span className="text-xs text-[#e6e2d9]/70">by {link.username}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 text-[#e6e2d9] hover:text-indigo-400 transition-all duration-200"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
-          <DialogHeader className="flex flex-row items-center justify-between">
-            <DialogTitle className="text-[#e6e2d9]">Add to Combination</DialogTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-[#e6e2d9]/10 text-[#e6e2d9] hover:bg-[#e6e2d9]/20 hover:text-indigo-400 transition-all duration-200"
-              onClick={() => setIsCreateModalOpen(true)}
-            >
-              Create New
-            </Button>
-          </DialogHeader>
-          <div className="space-y-4">
-            {combinations.length > 0 ? (
-              <div className="space-y-2">
-                {combinations.map((combination) => (
-                  <button
-                    key={combination.id}
-                    onClick={() => setSelectedCombination(combination.id)}
-                    className={`w-full p-3 text-left rounded-lg transition-colors duration-150 ${
-                      selectedCombination === combination.id
-                        ? 'bg-[#e6e2d9]/10 text-[#e6e2d9] border border-indigo-500'
-                        : 'bg-[#e6e2d9]/10 text-[#e6e2d9] hover:bg-[#e6e2d9]/20'
-                    }`}
-                  >
-                    {combination.name}
-                  </button>
-                ))}
+          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+              <DialogHeader>
+                <DialogTitle>Add to Combination</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {combinations.length > 0 ? (
+                  <div className="space-y-2">
+                    {combinations.map((combination) => (
+                      <button
+                        key={combination.id}
+                        onClick={() => setSelectedCombination(combination.id)}
+                        className={`w-full p-3 text-left rounded-lg transition-colors duration-150 ${
+                          selectedCombination === combination.id
+                            ? 'bg-[#e6e2d9]/10 text-[#e6e2d9] border border-indigo-500'
+                            : 'bg-[#e6e2d9]/10 text-[#e6e2d9] hover:bg-[#e6e2d9]/20'
+                        }`}
+                      >
+                        {combination.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-[#e6e2d9]/70">No combinations found. Create one first!</p>
+                )}
+                <Button
+                  onClick={handleAddToCombination}
+                  disabled={!selectedCombination || loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg hover:shadow-indigo-500/25 transition-all duration-200"
+                >
+                  {loading ? 'Adding...' : 'Add to Combination'}
+                </Button>
               </div>
-            ) : (
-              <p className="text-center text-[#e6e2d9]/70">No combinations found. Create one first!</p>
-            )}
-            <Button
-              onClick={handleAddToCombination}
-              disabled={!selectedCombination || loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg hover:shadow-indigo-500/25 transition-all duration-200"
-            >
-              {loading ? 'Adding...' : 'Add to Combination'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
 
-      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
-          <DialogHeader>
-            <DialogTitle className="text-[#e6e2d9]">Create New Combination</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={newCombinationName}
-              onChange={(e) => setNewCombinationName(e.target.value)}
-              placeholder="Enter combination name"
-              className="w-full p-2 rounded-lg bg-[#e6e2d9]/10 text-[#e6e2d9] border border-[#e6e2d9]/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-            />
-            <Button
-              onClick={handleCreateCombination}
-              disabled={!newCombinationName.trim() || loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg hover:shadow-indigo-500/25 transition-all duration-200"
-            >
-              {loading ? 'Creating...' : 'Create Combination'}
-            </Button>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+              <DialogHeader>
+                <DialogTitle>Create New Combination</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={newCombinationName}
+                  onChange={(e) => setNewCombinationName(e.target.value)}
+                  placeholder="Enter combination name"
+                  className="w-full p-2 rounded-lg bg-[#e6e2d9]/10 text-[#e6e2d9] border border-[#e6e2d9]/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+                <Button
+                  onClick={handleCreateCombination}
+                  disabled={!newCombinationName.trim() || loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg hover:shadow-indigo-500/25 transition-all duration-200"
+                >
+                  {loading ? 'Creating...' : 'Create Combination'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <EditLinkDialog
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            link={link}
+            genres={genres}
+            onUpdate={() => onUpdate?.()}
+          />
+        </div>
+      ) : (
+        <div className="card-placeholder">
+          <div className="aspect-video bg-gray-200 animate-pulse" />
+          <div className="p-4">
+            <div className="h-4 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-4 bg-gray-200 rounded animate-pulse w-2/3" />
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      )}
+    </div>
   );
-} 
+});
+
+export default LinkCard; 

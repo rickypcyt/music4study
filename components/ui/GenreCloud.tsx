@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Tag {
   value: string;
@@ -29,22 +30,21 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const lastUpdateRef = useRef<number>(0);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
+  const initializeNodes = useCallback(() => {
     if (!containerRef.current) return;
 
     const width = window.innerWidth * 0.9;
-    const height = window.innerWidth < 640 ? 800 : 700; // Increased height for mobile
+    const height = window.innerWidth < 640 ? 800 : 700;
     const padding = window.innerWidth < 640 ? 10 : 20;
 
-    // Convertir tags a nodos
     const min = Math.min(...tags.map(t => t.count));
     const max = Math.max(...tags.map(t => t.count));
     
-    // Calcular el tamaño mínimo basado en el texto más largo y el ancho de la pantalla
     const maxTextLength = Math.max(...tags.map(t => t.value.length));
     const minSize = window.innerWidth < 640 
-      ? Math.max(40, maxTextLength * 3) // Smaller bubbles on mobile
+      ? Math.max(40, maxTextLength * 3)
       : Math.max(60, maxTextLength * 4);
     
     const sizeScale = d3.scaleSqrt()
@@ -87,99 +87,112 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
           size,
           x: position.x,
           y: position.y,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
+          vx: (Math.random() - 0.5) * 0.3, // Velocidad inicial reducida
+          vy: (Math.random() - 0.5) * 0.3,
         });
       }
     });
 
     setNodes(nodes);
+    setIsInitialized(true);
+  }, [tags]);
 
-    // Función de animación
+  useEffect(() => {
+    initializeNodes();
+  }, [initializeNodes]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    let lastFrameTime = 0;
+    const targetFPS = 30; // Reducir a 30 FPS para mejor rendimiento
+    const frameInterval = 1000 / targetFPS;
+
     const animate = (timestamp: number) => {
       if (!lastUpdateRef.current) lastUpdateRef.current = timestamp;
-      const deltaTime = timestamp - lastUpdateRef.current;
+      
+      // Limitar la frecuencia de actualización
+      if (timestamp - lastFrameTime < frameInterval) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
+      
+      lastFrameTime = timestamp;
+      const deltaTime = Math.min(timestamp - lastUpdateRef.current, 32);
       lastUpdateRef.current = timestamp;
 
-      // Solo actualizar si ha pasado suficiente tiempo (control de FPS)
-      if (deltaTime >= 16) { // Aproximadamente 60 FPS
-        setNodes(prevNodes => {
-          return prevNodes.map(node => {
-            // Si la burbuja está en hover, no moverla
-            if (node.isHovered) {
-              return node;
-            }
+      setNodes(prevNodes => {
+        return prevNodes.map(node => {
+          if (node.isHovered) return node;
 
-            // Actualizar posición con suavizado
-            let newX = node.x + node.vx;
-            let newY = node.y + node.vy;
-            let newVx = node.vx;
-            let newVy = node.vy;
+          // Reducir la complejidad de los cálculos
+          let newX = node.x + node.vx * (deltaTime / 16);
+          let newY = node.y + node.vy * (deltaTime / 16);
+          let newVx = node.vx;
+          let newVy = node.vy;
 
-            // Colisión con bordes (con suavizado)
-            if (newX - node.size < 0 || newX + node.size > width) {
-              newVx = -newVx * 0.95;
-            }
-            if (newY - node.size < 0 || newY + node.size > height) {
-              newVy = -newVy * 0.95;
-            }
+          // Simplificar las colisiones
+          if (newX - node.size < 0 || newX + node.size > window.innerWidth * 0.9) {
+            newVx = -newVx * 0.8;
+            newX = Math.max(node.size, Math.min(window.innerWidth * 0.9 - node.size, newX));
+          }
+          if (newY - node.size < 0 || newY + node.size > (window.innerWidth < 640 ? 800 : 700)) {
+            newVy = -newVy * 0.8;
+            newY = Math.max(node.size, Math.min((window.innerWidth < 640 ? 800 : 700) - node.size, newY));
+          }
 
-            // Colisión con otras burbujas (optimizado)
-            for (const otherNode of prevNodes) {
-              if (otherNode.id !== node.id) {
-                const dx = newX - otherNode.x;
-                const dy = newY - otherNode.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const minDistance = node.size + otherNode.size + padding;
+          // Optimizar las colisiones entre burbujas
+          const nearbyNodes = prevNodes.filter(otherNode => {
+            if (otherNode.id === node.id) return false;
+            const dx = newX - otherNode.x;
+            const dy = newY - otherNode.y;
+            return Math.abs(dx) < node.size + otherNode.size + 50 && 
+                   Math.abs(dy) < node.size + otherNode.size + 50;
+          });
 
-                if (distance < minDistance) {
-                  // Vector normal
-                  const nx = dx / distance;
-                  const ny = dy / distance;
+          for (const otherNode of nearbyNodes) {
+            const dx = newX - otherNode.x;
+            const dy = newY - otherNode.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const minDistance = node.size + otherNode.size + (window.innerWidth < 640 ? 10 : 20);
 
-                  // Velocidad relativa
-                  const dvx = node.vx - otherNode.vx;
-                  const dvy = node.vy - otherNode.vy;
-                  const speed = dvx * nx + dvy * ny;
+            if (distance < minDistance) {
+              const nx = dx / distance;
+              const ny = dy / distance;
+              const overlap = (minDistance - distance) * 0.5;
 
-                  // Rebote con pérdida de energía
-                  if (speed < 0) {
-                    const bounce = speed * 0.95;
-                    newVx -= bounce * nx;
-                    newVy -= bounce * ny;
-                  }
+              newX += nx * overlap * 0.5;
+              newY += ny * overlap * 0.5;
 
-                  // Separación suave
-                  const overlap = (minDistance - distance) * 0.5;
-                  newX += nx * overlap;
-                  newY += ny * overlap;
-                }
+              const dvx = node.vx - otherNode.vx;
+              const dvy = node.vy - otherNode.vy;
+              const speed = dvx * nx + dvy * ny;
+
+              if (speed < 0) {
+                const bounce = speed * 0.8;
+                newVx -= bounce * nx;
+                newVy -= bounce * ny;
               }
             }
+          }
 
-            // Asegurar que la burbuja no se salga de los límites
-            newX = Math.max(node.size, Math.min(width - node.size, newX));
-            newY = Math.max(node.size, Math.min(height - node.size, newY));
+          // Aumentar la fricción para reducir el movimiento
+          newVx *= 0.99;
+          newVy *= 0.99;
 
-            // Aplicar fricción
-            newVx *= 0.999;
-            newVy *= 0.999;
-
-            return {
-              ...node,
-              x: newX,
-              y: newY,
-              vx: newVx,
-              vy: newVy
-            };
-          });
+          return {
+            ...node,
+            x: newX,
+            y: newY,
+            vx: newVx,
+            vy: newVy
+          };
         });
-      }
+      });
 
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    // Iniciar animación
     animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -187,7 +200,7 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [tags]);
+  }, [isInitialized]);
 
   const getFontSize = (count: number) => {
     const min = Math.min(...tags.map(t => t.count));
@@ -204,44 +217,61 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
         className="w-[90vw] h-[800px] sm:h-[700px] relative overflow-y-auto"
       >
         <div className="min-h-full w-full">
-          {nodes.map((node) => (
-            <button
-              key={node.id}
-              className="
-                absolute rounded-full bg-[#e6e2d9]/20 
-                hover:bg-[#e6e2d9]/30 text-[#e6e2d9]
-                transition-all duration-300 ease-in-out
-                hover:scale-110 flex flex-col items-center justify-center
-                cursor-pointer text-center p-2
-                border border-[#e6e2d9]/10 shadow-lg
-              "
-              style={{ 
-                width: `${node.size * 2}px`,
-                height: `${node.size * 2}px`,
-                fontSize: `${getFontSize(node.value)}rem`,
-                opacity: 0.9 + (node.value / Math.max(...tags.map(t => t.count))) * 0.1,
-                transform: `translate(${node.x - node.size}px, ${node.y - node.size}px)`,
-              }}
-              onMouseEnter={() => {
-                setNodes(prevNodes => 
-                  prevNodes.map(n => 
-                    n.id === node.id ? { ...n, isHovered: true } : n
-                  )
-                );
-              }}
-              onMouseLeave={() => {
-                setNodes(prevNodes => 
-                  prevNodes.map(n => 
-                    n.id === node.id ? { ...n, isHovered: false } : n
-                  )
-                );
-              }}
-              onClick={() => onGenreClick(node.id)}
-            >
-              <span className="px-2 sm:px-4 text-sm sm:text-base font-bold">{node.id}</span>
-              <span className="text-xs opacity-70 mt-1">{node.value}</span>
-            </button>
-          ))}
+          <AnimatePresence>
+            {nodes.map((node) => (
+              <motion.button
+                key={node.id}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ 
+                  scale: 1, 
+                  opacity: 0.9 + (node.value / Math.max(...tags.map(t => t.count))) * 0.1,
+                  x: node.x - node.size,
+                  y: node.y - node.size
+                }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ 
+                  type: "spring",
+                  stiffness: 100,
+                  damping: 15,
+                  mass: 0.5
+                }}
+                className="
+                  absolute rounded-full bg-[#e6e2d9]/20 
+                  hover:bg-[#e6e2d9]/30 text-[#e6e2d9]
+                  transition-all duration-300 ease-in-out
+                  hover:scale-110 flex flex-col items-center justify-center
+                  cursor-pointer text-center p-2
+                  border border-[#e6e2d9]/10 shadow-lg
+                  backdrop-blur-sm
+                "
+                style={{ 
+                  width: `${node.size * 2}px`,
+                  height: `${node.size * 2}px`,
+                  fontSize: `${getFontSize(node.value)}rem`,
+                }}
+                onMouseEnter={() => {
+                  setNodes(prevNodes => 
+                    prevNodes.map(n => 
+                      n.id === node.id ? { ...n, isHovered: true } : n
+                    )
+                  );
+                }}
+                onMouseLeave={() => {
+                  setNodes(prevNodes => 
+                    prevNodes.map(n => 
+                      n.id === node.id ? { ...n, isHovered: false } : n
+                    )
+                  );
+                }}
+                onClick={() => onGenreClick(node.id)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span className="px-2 sm:px-4 text-sm sm:text-base font-bold">{node.id}</span>
+                <span className="text-xs opacity-70 mt-1">{node.value}</span>
+              </motion.button>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
     </div>
