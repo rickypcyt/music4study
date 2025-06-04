@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Home, Layers, Menu, Sun, Tags, X } from 'lucide-react';
+import { ArrowUpDown, Home, Layers, Menu, Tags, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "./dialog";
 import { useCallback, useEffect, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from './button';
 import Link from 'next/link';
@@ -37,7 +37,6 @@ export default function Navbar({
   currentTheme,
 }: NavbarProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);

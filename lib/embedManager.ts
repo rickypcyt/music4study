@@ -187,9 +187,9 @@ class EmbedManager {
     const url = this.preloadQueue.shift();
     if (url) {
       // Use requestIdleCallback for non-critical preloading
-      if ('requestIdleCallback' in window) {
-        (window as any).requestIdleCallback(() => this.loadEmbed(url));
-      } else {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        (window as { requestIdleCallback: (callback: IdleRequestCallback) => void }).requestIdleCallback(() => this.loadEmbed(url));
+      } else if (typeof window !== 'undefined') {
         setTimeout(() => this.loadEmbed(url), 0);
       }
       this.processPreloadQueue();

@@ -16,6 +16,14 @@ interface PerformanceMetrics {
   domNodes: number;
 }
 
+interface PerformanceWithMemory extends Performance {
+  memory?: {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  };
+}
+
 export default function PerformanceMonitor() {
   const [metrics, setMetrics] = useState<PerformanceMetrics>({
     fps: 0,
@@ -38,7 +46,7 @@ export default function PerformanceMonitor() {
         lastTime = currentTime;
 
         // Obtener métricas de memoria (solo en Chrome)
-        const memory = (performance as any).memory;
+        const memory = (performance as PerformanceWithMemory).memory;
         
         // Contar nodos DOM
         const domNodes = document.getElementsByTagName('*').length;

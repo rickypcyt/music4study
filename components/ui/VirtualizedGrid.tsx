@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-
+import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualizedGridProps<T> {
@@ -22,13 +21,9 @@ export default function VirtualizedGrid<T>({
   columns = 4,
 }: VirtualizedGridProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const [parentWidth, setParentWidth] = useState(0);
 
   // Calcular el número de filas basado en el número de columnas
   const rowCount = Math.ceil(items.length / columns);
-
-  // Calcular el tamaño de cada columna
-  const columnWidth = parentWidth / columns;
 
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -36,19 +31,6 @@ export default function VirtualizedGrid<T>({
     estimateSize: () => estimateSize,
     overscan,
   });
-
-  // Actualizar el ancho del contenedor cuando cambia el tamaño de la ventana
-  useEffect(() => {
-    const updateWidth = () => {
-      if (parentRef.current) {
-        setParentWidth(parentRef.current.offsetWidth);
-      }
-    };
-
-    updateWidth();
-    window.addEventListener('resize', updateWidth);
-    return () => window.removeEventListener('resize', updateWidth);
-  }, []);
 
   return (
     <div

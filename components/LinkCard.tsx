@@ -46,6 +46,8 @@ const SpotifyEmbed = memo(({ url }: { url: string }) => {
   const embedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const currentEmbedRef = embedRef.current;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -57,13 +59,13 @@ const SpotifyEmbed = memo(({ url }: { url: string }) => {
       { threshold: 0.1 }
     );
 
-    if (embedRef.current) {
-      observer.observe(embedRef.current);
+    if (currentEmbedRef) {
+      observer.observe(currentEmbedRef);
     }
 
     return () => {
-      if (embedRef.current) {
-        observer.unobserve(embedRef.current);
+      if (currentEmbedRef) {
+        observer.unobserve(currentEmbedRef);
       }
     };
   }, [isLoaded]);

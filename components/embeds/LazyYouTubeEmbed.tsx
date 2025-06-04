@@ -4,7 +4,6 @@ import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvail
 import { useEffect, useState } from 'react';
 
 import Image from 'next/image';
-import { useToast } from '@/components/hooks/use-toast';
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -31,7 +30,6 @@ export default function LazyYouTubeEmbed({
   const [loadError, setLoadError] = useState(false);
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  const { toast } = useToast();
 
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;

@@ -82,7 +82,6 @@ function HomeContent() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
-  const [gridColumns, setGridColumns] = useState(4);
 
   const selectedGenre = searchParams.get('genre');
 
@@ -408,26 +407,6 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    const calculateGridColumns = () => {
-      if (typeof window !== 'undefined') {
-        if (window.innerWidth >= 1280) {
-          setGridColumns(4);
-        } else if (window.innerWidth >= 1024) {
-          setGridColumns(3);
-        } else if (window.innerWidth >= 640) {
-          setGridColumns(2);
-        } else {
-          setGridColumns(1);
-        }
-      }
-    };
-
-    calculateGridColumns();
-    window.addEventListener('resize', calculateGridColumns);
-    return () => window.removeEventListener('resize', calculateGridColumns);
-  }, []);
-
   if (error) {
     return (
       <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
@@ -531,7 +510,7 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {links.map(link => (
                   <div key={link.id}>
                     <LinkCard link={link} />

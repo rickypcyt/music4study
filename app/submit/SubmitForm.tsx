@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -36,7 +35,6 @@ interface Link {
 
 function SubmitForm({ onClose, genres, onNewLinkAdded }: SubmitFormProps) {
     const { toast } = useToast();
-    const router = useRouter();
     const [formData, setFormData] = useState({
         url: '',
         type: '',
