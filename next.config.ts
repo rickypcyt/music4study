@@ -24,6 +24,19 @@ const nextConfig: NextConfig = {
           {
             key: 'Access-Control-Allow-Origin',
             value: '*'
+          },
+          {
+            key: 'Content-Security-Policy',
+            value: `
+              default-src 'self' https: blob:;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:;
+              style-src 'self' 'unsafe-inline' https:;
+              img-src 'self' data: https: blob:;
+              media-src 'self' https: blob:;
+              frame-src 'self' https://www.youtube.com https://w.soundcloud.com https://open.spotify.com;
+              connect-src 'self' https: wss:;
+              font-src 'self' data: https:;
+            `.replace(/\s+/g, ' ').trim()
           }
         ],
       },

@@ -1,17 +1,18 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
-import Navbar from '@/components/ui/Navbar';
-import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+import { Button } from '@/components/ui/button';
+import GenreCloud from '@/components/ui/GenreCloud';
+import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
-import GenreCloud from '@/components/ui/GenreCloud';
-import { getGenres } from './genres/actions';
-import { useRouter, useSearchParams } from 'next/navigation';
+import Navbar from '@/components/ui/Navbar';
 import SubmitForm from './submit/SubmitForm';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { getGenres } from './genres/actions';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 12;
@@ -34,6 +35,12 @@ interface Combination {
 
 interface CombinationWithLinks extends Combination {
   links: Link[];
+}
+
+// Añadir interfaz para el caché
+interface LinksCache {
+  links: Link[];
+  lastUpdated: string;
 }
 
 function HomeContent() {
@@ -70,17 +77,13 @@ function HomeContent() {
   const selectedGenre = searchParams.get('genre');
 
   const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
-    console.log('Updating displayed links...');
-    console.log('All links:', allLinks.length);
-    console.log('Selected genre:', selectedGenre);
-    console.log('Current sort:', currentSort);
-
+    const filterStartTime = performance.now();
+    
     let filteredLinks = [...allLinks];
 
     // Apply genre filter if selected
     if (selectedGenre) {
       filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
-      console.log('Filtered links by genre:', filteredLinks.length);
     }
 
     // Apply sorting
@@ -96,6 +99,10 @@ function HomeContent() {
           return 0;
       }
     });
+
+    const filterEndTime = performance.now();
+    console.log(`Filtering and sorting completed in ${(filterEndTime - filterStartTime).toFixed(2)}ms`);
+    console.log(`Displaying ${filteredLinks.length} links out of ${allLinks.length} total links`);
 
     // Update state with all filtered links
     setLinks(filteredLinks);
@@ -121,7 +128,41 @@ function HomeContent() {
     localStorage.setItem('theme', theme);
   };
 
-  // Fetch all data on initial load
+  // Función para guardar en caché
+  const saveToCache = (links: Link[]) => {
+    const cache: LinksCache = {
+      links,
+      lastUpdated: new Date().toISOString()
+    };
+    localStorage.setItem('music4study_links_cache', JSON.stringify(cache));
+    console.log('Links saved to cache');
+  };
+
+  // Función para obtener de caché
+  const getFromCache = (): LinksCache | null => {
+    const cached = localStorage.getItem('music4study_links_cache');
+    if (!cached) return null;
+    
+    try {
+      const cache: LinksCache = JSON.parse(cached);
+      // Verificar si el caché tiene menos de 1 hora
+      const cacheAge = new Date().getTime() - new Date(cache.lastUpdated).getTime();
+      const oneHour = 60 * 60 * 1000;
+      
+      if (cacheAge < oneHour) {
+        console.log('Using cached links (age:', Math.round(cacheAge / 1000), 'seconds)');
+        return cache;
+      } else {
+        console.log('Cache expired, fetching fresh data');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error parsing cache:', error);
+      return null;
+    }
+  };
+
+  // Modificar el useEffect de carga inicial
   useEffect(() => {
     const fetchInitialData = async () => {
       if (!isInitialLoadRef.current) return;
@@ -130,35 +171,67 @@ function HomeContent() {
       setError(null);
       
       try {
-        console.log('Fetching initial data...');
+        const totalStartTime = performance.now();
+        console.log('Starting initial data fetch...');
         
         // Fetch genres
+        const genresStartTime = performance.now();
         const genresData = await getGenres();
-        console.log('Genres fetched:', genresData);
+        const genresEndTime = performance.now();
+        console.log(`Genres fetched in ${(genresEndTime - genresStartTime).toFixed(2)}ms:`, genresData);
         setGenres(genresData);
 
-        // Fetch all links
-        console.log('Fetching links...');
-        const { data: allLinksData, error: linksError } = await supabase
-          .from('links')
-          .select('*')
-          .order('date_added', { ascending: false });
+        // Intentar obtener links del caché primero
+        const cachedData = getFromCache();
+        let allLinksData: Link[] | null = null;
 
-        if (linksError) {
-          throw linksError;
+        if (cachedData) {
+          allLinksData = cachedData.links;
+          console.log('Using cached links:', allLinksData.length);
+        } else {
+          // Si no hay caché o está expirado, fetch de la base de datos
+          console.log('Fetching all links from database...');
+          const linksStartTime = performance.now();
+          const { data, error: linksError } = await supabase
+            .from('links')
+            .select('*')
+            .order('date_added', { ascending: false });
+
+          if (linksError) {
+            throw linksError;
+          }
+
+          const linksEndTime = performance.now();
+          console.log(`Raw links fetched in ${(linksEndTime - linksStartTime).toFixed(2)}ms: ${data?.length || 0} links`);
+          
+          if (data) {
+            allLinksData = data;
+            // Guardar en caché
+            saveToCache(data);
+          }
         }
 
-        console.log('Links fetched:', allLinksData?.length || 0, 'links');
-        
         if (allLinksData) {
-          // Add default values for missing properties
+          // Process all links at once
+          const processStartTime = performance.now();
           const processedLinks = allLinksData.map(link => ({
             ...link,
             type: link.type || 'generic',
             username: link.username || 'anonymous'
           }));
+          
+          // Store all links in memory
           allLinksRef.current = processedLinks;
+          
+          // Update displayed links
           updateDisplayedLinks(processedLinks);
+          
+          const processEndTime = performance.now();
+          console.log(`Links processed and stored in memory in ${(processEndTime - processStartTime).toFixed(2)}ms`);
+          
+          const totalEndTime = performance.now();
+          console.log(`Total initialization time: ${(totalEndTime - totalStartTime).toFixed(2)}ms`);
+          console.log(`Memory usage: ${(processedLinks.length * JSON.stringify(processedLinks[0]).length / 1024).toFixed(2)}KB for all links`);
         } else {
           console.log('No links data received');
           setLinks([]);
@@ -313,6 +386,15 @@ function HomeContent() {
     router.push(`/?${newParams.toString()}`);
   };
 
+  // Añadir función para actualizar el caché después de añadir un nuevo link
+  const handleNewLinkAdded = (newLink: Link) => {
+    const currentLinks = allLinksRef.current;
+    const updatedLinks = [newLink, ...currentLinks];
+    allLinksRef.current = updatedLinks;
+    saveToCache(updatedLinks);
+    updateDisplayedLinks(updatedLinks);
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
@@ -442,7 +524,11 @@ function HomeContent() {
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
         <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
-          <SubmitForm onClose={() => setIsSubmitModalOpen(false)} genres={genres} />
+          <SubmitForm 
+            onClose={() => setIsSubmitModalOpen(false)} 
+            genres={genres} 
+            onNewLinkAdded={handleNewLinkAdded}
+          />
         </DialogContent>
       </Dialog>
 

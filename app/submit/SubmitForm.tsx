@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useToast } from '@/components/hooks/use-toast';
 
 type FieldError = string | null;
 
@@ -19,10 +20,21 @@ interface FormErrors {
 
 interface SubmitFormProps {
     onClose: () => void;
-    genres: { value: string; count: number }[];
+    genres: { value: string; count: number; }[];
+    onNewLinkAdded?: (newLink: Link) => void;
 }
 
-function SubmitForm({ onClose, genres }: SubmitFormProps) {
+interface Link {
+    id: string;
+    title: string;
+    url: string;
+    genre: string;
+    date_added: string;
+    type: string;
+    username: string;
+}
+
+function SubmitForm({ onClose, genres, onNewLinkAdded }: SubmitFormProps) {
     const { toast } = useToast();
     const router = useRouter();
     const [formData, setFormData] = useState({
@@ -78,30 +90,33 @@ function SubmitForm({ onClose, genres }: SubmitFormProps) {
 
         setLoading(true);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('links')
                 .insert([{
-                    url: formData.url,
-                    type: formData.type,
-                    genre: formData.genre,
-                    username: formData.username,
+                    ...formData,
                     date_added: new Date().toISOString()
-                }]);
+                }])
+                .select()
+                .single();
 
             if (error) throw error;
 
             toast({
                 title: "Success!",
-                description: "Your track has been submitted successfully.",
+                description: "Your music has been shared.",
             });
 
+            // Notificar al componente padre sobre el nuevo link
+            if (data && onNewLinkAdded) {
+                onNewLinkAdded(data);
+            }
+
             onClose();
-            router.refresh();
         } catch (error) {
-            console.error('Error submitting:', error);
+            console.error('Error submitting form:', error);
             toast({
                 title: "Error",
-                description: "There was an error submitting your track. Please try again.",
+                description: "Failed to share music. Please try again.",
                 variant: "destructive",
             });
         } finally {
