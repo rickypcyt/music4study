@@ -14,6 +14,7 @@ import SubmitForm from './submit/SubmitForm';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
+import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -365,6 +366,22 @@ function HomeContent() {
     updateDisplayedLinks(updatedLinks);
   };
 
+  // Función para limpiar el caché cuando no se necesita
+  const cleanupCache = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      // Limpiar caché si no estamos en la vista principal
+      if (currentView !== 'home') {
+        localStorage.removeItem('music4study_links_cache');
+        allLinksRef.current = [];
+      }
+    }
+  }, [currentView]);
+
+  // Limpiar caché cuando cambiamos de vista
+  useEffect(() => {
+    cleanupCache();
+  }, [currentView, cleanupCache]);
+
   if (error) {
     return (
       <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
@@ -436,11 +453,12 @@ function HomeContent() {
                       {combination.name}
                     </h2>
                     {combination.links.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {combination.links.map((link) => (
-                          <LinkCard key={link.id} link={link} />
-                        ))}
-                      </div>
+                      <VirtualizedGrid
+                        items={combination.links}
+                        renderItem={(link) => <LinkCard key={link.id} link={link} />}
+                        columns={3}
+                        className="min-h-[200px]"
+                      />
                     ) : (
                       <p className="text-foreground/70">No tracks in this combination yet.</p>
                     )}
@@ -467,22 +485,14 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {links.slice(0, displayedCount).map((link) => (
-                    <LinkCard key={link.id} link={link} />
-                  ))}
-                </div>
-                {links.length > displayedCount && (
-                  <div ref={loadMoreRef} className="flex justify-center mt-8">
-                    {isLoadingMore ? (
-                      <LoadingCards />
-                    ) : (
-                      <div className="text-foreground/70">Loading more...</div>
-                    )}
-                  </div>
-                )}
-              </>
+              <div className="min-h-[60vh]">
+                <VirtualizedGrid
+                  items={links}
+                  renderItem={(link) => <LinkCard key={link.id} link={link} />}
+                  columns={window.innerWidth >= 1280 ? 4 : window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1}
+                  className="min-h-[400px]"
+                />
+              </div>
             ) : (
               <div className="text-center text-foreground/70 py-12">
                 No tracks found. Be the first to add one!

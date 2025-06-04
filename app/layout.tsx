@@ -7,6 +7,8 @@ import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
+import ResourcePreloader from '@/components/ResourcePreloader';
+import { cn } from '@/lib/utils';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -102,12 +104,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="emfPXJ9fdKnImVBYpVMGTCGINjQH1rj_n8BwFitFpuI" />
         <SpotifyScript />
+        <ResourcePreloader />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 min-h-screen flex flex-col`}>
+      <body className={cn(
+        "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased",
+        geistSans.variable,
+        geistMono.variable
+      )}>
         <Suspense fallback={<div>Loading...</div>}>
           {children}
         </Suspense>

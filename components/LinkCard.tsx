@@ -2,13 +2,14 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Spotify } from 'react-spotify-embed';
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
+import CachedEmbed from './embeds/CachedEmbed';
 
 interface Link {
   id: string;
@@ -28,6 +29,64 @@ interface Combination {
   id: string;
   name: string;
 }
+
+// Función para formatear la fecha
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
+// Componente memoizado para el contenido del embed
+const SpotifyEmbed = memo(({ url }: { url: string }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const embedRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !isLoaded) {
+            setIsLoaded(true);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (embedRef.current) {
+      observer.observe(embedRef.current);
+    }
+
+    return () => {
+      if (embedRef.current) {
+        observer.unobserve(embedRef.current);
+      }
+    };
+  }, [isLoaded]);
+
+  if (!isLoaded) {
+    return (
+      <div 
+        ref={embedRef}
+        className="w-full aspect-[16/9] bg-[#e6e2d9]/5 animate-pulse rounded-t-lg"
+      />
+    );
+  }
+
+  return (
+    <div ref={embedRef} className="w-full aspect-[16/9]">
+      <div className="w-full h-full">
+        <Spotify link={url} className="w-full h-full" />
+      </div>
+    </div>
+  );
+});
+
+SpotifyEmbed.displayName = 'SpotifyEmbed';
 
 export default function LinkCard({ link }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -157,72 +216,29 @@ export default function LinkCard({ link }: LinkCardProps) {
   const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
   const isSoundCloud = link.url.includes('soundcloud.com');
   
-  const getYouTubeEmbedUrl = (url: string) => {
-    let videoId;
-    
-    if (url.includes('youtu.be')) {
-      // Handle youtu.be format
-      videoId = url.split('youtu.be/')[1]?.split(/[?&]/)[0];
-    } else if (url.includes('youtube.com')) {
-      // Handle youtube.com format
-      videoId = url.split('v=')[1]?.split(/[?&]/)[0];
-    }
-    
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-  };
-
-  const getSoundCloudEmbedUrl = (url: string) => {
-    return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   return (
     <>
       <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300" ref={cardRef}>
         <CardContent className="p-2">
-          {isSpotify ? (
-            <div className="">
-              <div className="aspect-video relative">
-                <div className="absolute inset-0">
-                  <Spotify 
-                    wide
-                    link={link.url}
-                    style={{ height: '100%' }}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : isYouTube ? (
-            <div className="pt-4">
-              <iframe
-                src={getYouTubeEmbedUrl(link.url)}
-                className="w-full aspect-[16/9]"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-              />
-            </div>
-          ) : isSoundCloud ? (
-            <div className="pt-4">
-              <iframe
-                src={getSoundCloudEmbedUrl(link.url)}
-                className="w-full aspect-[16/9]"
-                scrolling="no"
-                frameBorder="no"
-                allow="autoplay"
-                loading="lazy"
+          {(isSpotify || isYouTube || isSoundCloud) ? (
+            <div className="w-full">
+              <CachedEmbed 
+                url={link.url}
+                linkId={link.id}
+                onLoad={() => {
+                  // You can add any additional logic here when the embed loads
+                }}
+                onError={() => {
+                  toast({
+                    title: "Error",
+                    description: "Failed to load embed. You can still open the link in a new tab.",
+                    variant: "destructive",
+                  });
+                }}
               />
             </div>
           ) : (
-            <div className="w-full aspect-[16/10] bg-gray-100 flex items-center justify-center text-gray-500">
+            <div className="w-full aspect-video bg-gray-100 flex items-center justify-center text-gray-500">
               Unsupported URL format
             </div>
           )}

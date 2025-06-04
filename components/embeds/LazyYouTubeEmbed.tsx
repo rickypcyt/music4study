@@ -2,21 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
+import { useToast } from '@/components/hooks/use-toast';
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
   title: string;
+  linkId: string;
+  className?: string;
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
 }
 
 export default function LazyYouTubeEmbed({ 
   videoId, 
   title,
+  linkId,
+  className = '',
   thumbnailQuality = 'hqdefault' 
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const { toast } = useToast();
 
   const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/${thumbnailQuality}.jpg`;
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -27,9 +34,17 @@ export default function LazyYouTubeEmbed({
 
     const checkEmbed = async () => {
       try {
-        const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
-        if (!response.ok) {
+        const { isAvailable, error } = await checkVideoAvailability(videoId);
+        
+        if (!isAvailable) {
           setLoadError(true);
+          // Remove the video from the database
+          await removeUnavailableVideo(linkId);
+          toast({
+            title: "Video Unavailable",
+            description: "This video has been removed and will no longer appear in the list.",
+            variant: "destructive",
+          });
         }
       } catch (error) {
         console.error('Error checking video availability:', error);
@@ -38,7 +53,7 @@ export default function LazyYouTubeEmbed({
     };
 
     checkEmbed();
-  }, [isLoaded, videoId]);
+  }, [isLoaded, videoId, linkId, toast]);
 
   const handleIframeError = () => {
     setIsBlocked(true);
@@ -47,7 +62,7 @@ export default function LazyYouTubeEmbed({
 
   if (isBlocked || loadError) {
     return (
-      <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+      <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
         <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
           <div className="mb-4">
             <svg
@@ -93,7 +108,7 @@ export default function LazyYouTubeEmbed({
   }
 
   return (
-    <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
+    <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
       {!isLoaded ? (
         <div 
           className="relative w-full h-full cursor-pointer"
