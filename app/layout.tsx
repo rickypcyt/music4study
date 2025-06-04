@@ -4,10 +4,10 @@ import { Geist, Geist_Mono } from 'next/font/google';
 
 import type { Metadata } from 'next';
 import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
+import ResourcePreloader from '@/components/ResourcePreloader';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
-import ResourcePreloader from '@/components/ResourcePreloader';
 import { cn } from '@/lib/utils';
 
 const geistSans = Geist({

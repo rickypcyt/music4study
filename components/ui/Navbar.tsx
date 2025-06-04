@@ -7,11 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+import { useEffect, useState } from 'react';
 
 import { Button } from './button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
 
 interface NavbarProps {
   currentView: 'home' | 'genres' | 'combinations';
@@ -41,6 +41,24 @@ export default function Navbar({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
 
+  // Close mobile menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isMobileMenuOpen && !target.closest('.mobile-menu') && !target.closest('.mobile-menu-button')) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMobileMenuOpen]);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -53,14 +71,15 @@ export default function Navbar({
           onHomeClick();
           setIsMobileMenuOpen(false);
         }}
-        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'home'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         }`}
       >
         <Home className="h-5 w-5 mr-2" />
-        Home
+        <span className="hidden sm:inline">Home</span>
+        <span className="sm:hidden">Home</span>
       </Link>
       <Link
         href="/genres"
@@ -68,14 +87,15 @@ export default function Navbar({
           onGenresClick();
           setIsMobileMenuOpen(false);
         }}
-        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'genres'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         }`}
       >
         <Tags className="h-5 w-5 mr-2" />
-        Genres
+        <span className="hidden sm:inline">Genres</span>
+        <span className="sm:hidden">Genres</span>
       </Link>
       <Link
         href="/combinations"
@@ -83,40 +103,35 @@ export default function Navbar({
           onCombinationsClick();
           setIsMobileMenuOpen(false);
         }}
-        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium ${
+        className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'combinations'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         }`}
       >
         <Layers className="h-5 w-5 mr-2" />
-        Combinations
+        <span className="hidden sm:inline">Combinations</span>
+        <span className="sm:hidden">Combinations</span>
       </Link>
     </>
   );
 
   const ControlButtons = () => (
     currentView === 'home' && (
-      <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
         <button
           onClick={() => setShowSortMenu(true)}
-          className="inline-flex items-center px-3 py-2 rounded-md text-base font-medium text-foreground/70 hover:text-foreground hover:bg-accent/50"
+          className="w-full sm:w-auto inline-flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-foreground/70 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
         >
           <ArrowUpDown className="h-5 w-5 mr-2" />
-          Sort
-        </button>
-        <button
-          onClick={() => setShowThemeMenu(true)}
-          className="inline-flex items-center px-3 py-2 rounded-md text-base font-medium text-foreground/70 hover:text-foreground hover:bg-accent/50"
-        >
-          <Sun className="h-5 w-5 mr-2" />
-          Theme
+          <span className="hidden sm:inline">Sort</span>
+          <span className="sm:hidden">Sort Tracks</span>
         </button>
         <Button
           onClick={onSubmitClick}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground text-base1 sm:text-base px-3 sm:px-4 py-1.5 sm:py-2"
+          className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground text-base px-3 py-2 transition-colors duration-200"
         >
-          <span className="sm:hidden">+</span>
+          <span className="sm:hidden">Submit New Track</span>
           <span className="hidden sm:inline">Submit Track</span>
         </Button>
       </div>
@@ -124,48 +139,61 @@ export default function Navbar({
   );
 
   return (
-    <nav className="navbar border-b border-border/10">
+    <nav className="navbar sticky top-0 z-50">
       <div className="w-full px-2 sm:px-4 lg:px-6">
-        <div className="flex justify-between h-16 border-b">
-          <div className="flex">
-            {/* Mobile menu button */}
-            <div className="sm:hidden flex items-center">
-              <button
-                onClick={toggleMobileMenu}
-                className="inline-flex items-center justify-center p-2 rounded-md text-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="h-6 w-6" />
-                ) : (
-                  <Menu className="h-6 w-6" />
-                )}
-              </button>
+        <div className="flex justify-center h-16">
+          {/* Mobile menu button - remains left aligned */}
+          <div className="flex items-center sm:hidden mr-4">
+            <button
+              onClick={toggleMobileMenu}
+              className="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-foreground hover:bg-accent hover:text-accent-foreground focus:outline-none transition-colors duration-200"
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
+          </div>
+
+          {/* Main Content: Logo, Nav Links, Controls - Centered Group */}
+          <div className="flex items-center justify-between w-full max-w-screen-xl">
+
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-mono text-foreground tracking-wider font-light">
+                Music4Study
+              </h1>
             </div>
-            {/* Desktop menu */}
-            <div className="hidden sm:flex sm:space-x-8">
+
+            {/* Desktop Nav Links */}
+            <div className="hidden sm:flex sm:space-x-8 items-center">
               <NavLinks />
             </div>
-          </div>
-          <div className="absolute left-1/2 transform -translate-x-1/2">
-            <h1 className="text-2xl sm:text-3xl font-mono text-foreground tracking-wider pt-4 font-light">Music4Study</h1>
-          </div>
-          <div className="hidden sm:flex">
-            <ControlButtons />
+
+            {/* Desktop Controls */}
+            <div className="hidden sm:flex items-center">
+              <ControlButtons />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Mobile menu */}
-      {isMobileMenuOpen && (
-        <div className="sm:hidden">
-          <div className="pt-2 pb-3 space-y-1">
+      <div 
+        className={`mobile-menu sm:hidden transition-all duration-300 ease-in-out ${isMobileMenuOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}
+        `}
+      >
+        <div className="px-2 pt-2 pb-3 space-y-1 bg-background/95 backdrop-blur-sm border-t border-border/10">
+          <div className="flex flex-col space-y-2">
             <NavLinks />
-            <div className="mt-4">
-              <ControlButtons />
-            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-border/10">
+            <ControlButtons />
           </div>
         </div>
-      )}
+      </div>
 
       {/* Sort Menu Dialog */}
       {showSortMenu && (
@@ -174,46 +202,27 @@ export default function Navbar({
             <DialogHeader>
               <DialogTitle className="text-xl font-serif">Sort by</DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  onSortChange('date');
-                  setShowSortMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentSort === 'date'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Date Added
-              </button>
-              <button
-                onClick={() => {
-                  onSortChange('genre');
-                  setShowSortMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentSort === 'genre'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Genre
-              </button>
-              <button
-                onClick={() => {
-                  onSortChange('username');
-                  setShowSortMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentSort === 'username'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Uploader
-              </button>
+            <div className="grid gap-2">
+              {[
+                { value: 'date', label: 'Date Added' },
+                { value: 'genre', label: 'Genre' },
+                { value: 'username', label: 'Uploader' }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    onSortChange(option.value);
+                    setShowSortMenu(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-200 text-base ${
+                    currentSort === option.value
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </DialogContent>
         </Dialog>
@@ -226,85 +235,31 @@ export default function Navbar({
             <DialogHeader>
               <DialogTitle className="text-xl font-serif">Theme</DialogTitle>
             </DialogHeader>
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  onThemeChange('coffee');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'coffee'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Coffee
-              </button>
-              <button
-                onClick={() => {
-                  onThemeChange('dracula');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'dracula'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Dracula
-              </button>
-              <button
-                onClick={() => {
-                  onThemeChange('catppuccin');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'catppuccin'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Catppuccin
-              </button>
-              <button
-                onClick={() => {
-                  onThemeChange('solarized');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'solarized'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Solarized
-              </button>
-              <button
-                onClick={() => {
-                  onThemeChange('monokai');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'monokai'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Monokai
-              </button>
-              <button
-                onClick={() => {
-                  onThemeChange('gruvbox');
-                  setShowThemeMenu(false);
-                }}
-                className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-150 text-base ${
-                  currentTheme === 'gruvbox'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                Gruvbox
-              </button>
+            <div className="grid gap-2">
+              {[
+                { id: 'coffee', name: 'Coffee', icon: '☕' },
+                { id: 'dracula', name: 'Dracula', icon: '🎨' },
+                { id: 'catppuccin', name: 'Catppuccin', icon: '🍵' },
+                { id: 'solarized', name: 'Solarized', icon: '☀️' },
+                { id: 'monokai', name: 'Monokai', icon: '🎯' },
+                { id: 'gruvbox', name: 'Gruvbox', icon: '🌳' }
+              ].map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => {
+                    onThemeChange(theme.id);
+                    setShowThemeMenu(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-200 text-base flex items-center ${
+                    currentTheme === theme.id
+                      ? 'bg-accent text-accent-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  }`}
+                >
+                  <span className="mr-2">{theme.icon}</span>
+                  {theme.name}
+                </button>
+              ))}
             </div>
           </DialogContent>
         </Dialog>

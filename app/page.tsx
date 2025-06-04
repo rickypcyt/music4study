@@ -11,10 +11,10 @@ import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import SubmitForm from './submit/SubmitForm';
+import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
-import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
 
 const ITEMS_PER_PAGE = 12;
 

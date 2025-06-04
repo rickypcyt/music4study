@@ -14,47 +14,61 @@ interface LazyYouTubeEmbedProps {
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
 }
 
+interface VideoInfo {
+  title: string;
+  channelTitle: string;
+}
+
 export default function LazyYouTubeEmbed({ 
   videoId, 
-  title,
+  title: initialTitle,
   linkId,
   className = '',
-  thumbnailQuality = 'hqdefault' 
+  thumbnailQuality = 'hqdefault'
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
+  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const { toast } = useToast();
 
-  const thumbnailUrl = `https://img.youtube.com/vi/${videoId}/${thumbnailQuality}.jpg`;
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`;
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+  const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`;
 
   useEffect(() => {
-    if (!isLoaded) return;
-
-    const checkEmbed = async () => {
+    const fetchVideoInfo = async () => {
       try {
-        const { isAvailable, error } = await checkVideoAvailability(videoId);
-        
+        const response = await fetch(`/api/youtube-info?videoId=${videoId}`);
+        if (!response.ok) throw new Error('Failed to fetch video info');
+        const data = await response.json();
+        setVideoInfo(data);
+      } catch (err) {
+        console.error('Error fetching video info:', err instanceof Error ? err.message : 'Unknown error');
+        // Fallback to initial title if fetch fails
+        setVideoInfo({ title: initialTitle, channelTitle: '' });
+      }
+    };
+
+    const checkAvailability = async () => {
+      try {
+        const isAvailable = await checkVideoAvailability(videoId);
         if (!isAvailable) {
-          setLoadError(true);
-          // Remove the video from the database
+          setIsBlocked(true);
           await removeUnavailableVideo(linkId);
-          toast({
-            title: "Video Unavailable",
-            description: "This video has been removed and will no longer appear in the list.",
-            variant: "destructive",
-          });
+        } else {
+          // Only fetch video info if the video is available
+          fetchVideoInfo();
         }
-      } catch (error) {
-        console.error('Error checking video availability:', error);
+      } catch (err) {
+        console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
         setLoadError(true);
       }
     };
 
-    checkEmbed();
-  }, [isLoaded, videoId, linkId, toast]);
+    checkAvailability();
+  }, [videoId, linkId, initialTitle]);
 
   const handleIframeError = () => {
     setIsBlocked(true);
@@ -112,18 +126,43 @@ export default function LazyYouTubeEmbed({
     <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
       {!isLoaded ? (
         <div 
-          className="relative w-full h-full cursor-pointer"
+          className="relative w-full h-full cursor-pointer group"
           onClick={() => setIsLoaded(true)}
         >
+          {/* Loading skeleton */}
+          {!isThumbnailLoaded && (
+            <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+          )}
+
+          {/* High quality thumbnail */}
           <Image
             src={thumbnailUrl}
-            alt={title}
+            alt={videoInfo?.title || initialTitle}
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            onLoad={() => setIsThumbnailLoaded(true)}
+            priority={false}
+            loading="lazy"
+            quality={85}
           />
+
+          {/* Video info overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute bottom-0 left-0 right-0 p-4">
+              <h3 className="text-white text-lg font-semibold line-clamp-2">
+                {videoInfo?.title || initialTitle}
+              </h3>
+              {videoInfo?.channelTitle && (
+                <p className="text-white/80 text-sm mt-1">
+                  {videoInfo.channelTitle}
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
               <svg
                 className="w-8 h-8 text-white"
                 fill="currentColor"
@@ -138,10 +177,11 @@ export default function LazyYouTubeEmbed({
         <iframe
           className="absolute inset-0 w-full h-full"
           src={embedUrl}
-          title={title}
+          title={videoInfo?.title || initialTitle}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           onError={handleIframeError}
+          loading="lazy"
         />
       )}
     </div>
