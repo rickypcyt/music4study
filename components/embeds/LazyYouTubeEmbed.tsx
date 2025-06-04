@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
+import { useEffect, useState } from 'react';
+
+import Image from 'next/image';
 import { useToast } from '@/components/hooks/use-toast';
 
 interface LazyYouTubeEmbedProps {

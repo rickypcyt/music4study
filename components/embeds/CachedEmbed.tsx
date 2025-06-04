@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { embedManager } from '@/lib/embedManager';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useEffect, useRef, useState } from 'react';
+
 import Image from 'next/image';
-import { extractYouTubeId } from '@/components/embeds/LazyYouTubeEmbed';
 import LazyYouTubeEmbed from '@/components/embeds/LazyYouTubeEmbed';
+import { Skeleton } from '@/components/ui/skeleton';
+import { embedManager } from '@/lib/embedManager';
+import { extractYouTubeId } from '@/components/embeds/LazyYouTubeEmbed';
 
 interface CachedEmbedProps {
   url: string;
