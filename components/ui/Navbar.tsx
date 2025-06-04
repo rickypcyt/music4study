@@ -1,14 +1,17 @@
 'use client';
 
-import { Button } from './button';
-import { Home, Tags, Layers, ArrowUpDown, Sun, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowUpDown, Home, Layers, Menu, Sun, Tags, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "./dialog";
+
+import { Button } from './button';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 interface NavbarProps {
   currentView: 'home' | 'genres' | 'combinations';
@@ -36,6 +39,7 @@ export default function Navbar({
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -43,7 +47,8 @@ export default function Navbar({
 
   const NavLinks = () => (
     <>
-      <button
+      <Link
+        href="/"
         onClick={() => {
           onHomeClick();
           setIsMobileMenuOpen(false);
@@ -56,8 +61,9 @@ export default function Navbar({
       >
         <Home className="h-5 w-5 mr-2" />
         Home
-      </button>
-      <button
+      </Link>
+      <Link
+        href="/genres"
         onClick={() => {
           onGenresClick();
           setIsMobileMenuOpen(false);
@@ -70,8 +76,9 @@ export default function Navbar({
       >
         <Tags className="h-5 w-5 mr-2" />
         Genres
-      </button>
-      <button
+      </Link>
+      <Link
+        href="/combinations"
         onClick={() => {
           onCombinationsClick();
           setIsMobileMenuOpen(false);
@@ -84,7 +91,7 @@ export default function Navbar({
       >
         <Layers className="h-5 w-5 mr-2" />
         Combinations
-      </button>
+      </Link>
     </>
   );
 

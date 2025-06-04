@@ -1,30 +1,10 @@
 export default function Loading() {
   return (
     <div className="flex flex-col items-center justify-center h-[600px] p-8">
-      <div className="relative w-[1780px] h-full mx-auto" style={{
-        paddingLeft: 'calc(50% - 425.361px)',
-        paddingRight: 'calc(50% - 425.361px)'
-      }}>
-        {/* Simulación de burbujas cargando en forma circular */}
-        {[...Array(12)].map((_, i) => {
-          const angle = (i / 12) * Math.PI * 2;
-          const radius = 200;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-          
-          return (
-            <div
-              key={i}
-              className="absolute h-24 w-24 rounded-full bg-[#e6e2d9]/10 animate-pulse"
-              style={{
-                left: `calc(50% + ${x}px)`,
-                top: `calc(50% + ${y}px)`,
-                transform: 'translate(-50%, -50%)',
-                animationDelay: `${i * 0.1}s`
-              }}
-            />
-          );
-        })}
+      <div className="relative w-24 h-24">
+        <div className="absolute inset-0 rounded-full border-4 border-t-[#e6e2d9] border-r-[#e6e2d9]/30 border-b-[#e6e2d9]/30 border-l-[#e6e2d9]/30 animate-[spin_1s_linear_infinite]" />
+        <div className="absolute inset-2 rounded-full border-4 border-t-[#e6e2d9] border-r-[#e6e2d9]/30 border-b-[#e6e2d9]/30 border-l-[#e6e2d9]/30 animate-[spin_0.8s_linear_infinite_reverse]" />
+        <div className="absolute inset-4 rounded-full border-4 border-t-[#e6e2d9] border-r-[#e6e2d9]/30 border-b-[#e6e2d9]/30 border-l-[#e6e2d9]/30 animate-[spin_1.2s_linear_infinite]" />
       </div>
     </div>
   );

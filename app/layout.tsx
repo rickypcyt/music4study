@@ -1,8 +1,12 @@
-import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { Toaster } from '@/components/ui/toaster';
-import { Suspense } from 'react';
+
+import { Geist, Geist_Mono } from 'next/font/google';
+
+import type { Metadata } from 'next';
+import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
+import { Suspense } from 'react';
+import { Toaster } from '@/components/ui/toaster';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,7 +24,7 @@ const geistMono = Geist_Mono({
   preload: true,
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: {
     default: 'Music4Study - Curated Music for Studying',
     template: '%s | Music4Study'
@@ -83,7 +87,6 @@ export const metadata = {
   verification: {
     google: 'emfPXJ9fdKnImVBYpVMGTCGINjQH1rj_n8BwFitFpuI',
   },
-
 };
 
 export const viewport = {
@@ -91,7 +94,6 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-
 };
 
 export default function RootLayout({
@@ -110,6 +112,7 @@ export default function RootLayout({
           {children}
         </Suspense>
         <Toaster />
+        <PerformanceMonitor />
       </body>
     </html>
   );

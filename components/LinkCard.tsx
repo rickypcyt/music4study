@@ -1,13 +1,14 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useToast } from "@/components/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import { Spotify } from 'react-spotify-embed';
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/components/hooks/use-toast";
 
 interface Link {
   id: string;
@@ -188,7 +189,7 @@ export default function LinkCard({ link }: LinkCardProps) {
       <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300" ref={cardRef}>
         <CardContent className="p-2">
           {isSpotify ? (
-            <div className="pt-4">
+            <div className="">
               <div className="aspect-video relative">
                 <div className="absolute inset-0">
                   <Spotify 

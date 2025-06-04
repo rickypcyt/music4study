@@ -73,20 +73,46 @@ function HomeContent() {
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
 
   const selectedGenre = searchParams.get('genre');
 
+  // Función para obtener los géneros con caché
+  const fetchGenres = useCallback(async () => {
+    if (genresCacheRef.current.length > 0) {
+      setGenres(genresCacheRef.current);
+      return;
+    }
+
+    try {
+      const genresData = await getGenres();
+      genresCacheRef.current = genresData;
+      setGenres(genresData);
+    } catch (error) {
+      console.error('Error fetching genres:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load genres. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Cargar géneros al montar el componente
+  useEffect(() => {
+    fetchGenres();
+  }, [fetchGenres]);
+
+  // Función para actualizar los enlaces mostrados
   const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
-    const filterStartTime = performance.now();
-    
     let filteredLinks = [...allLinks];
 
-    // Apply genre filter if selected
+    // Filtrar por género si hay uno seleccionado
     if (selectedGenre) {
       filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
     }
 
-    // Apply sorting
+    // Ordenar los enlaces
     filteredLinks.sort((a, b) => {
       switch (currentSort) {
         case 'date':
@@ -100,32 +126,94 @@ function HomeContent() {
       }
     });
 
-    const filterEndTime = performance.now();
-    console.log(`Filtering and sorting completed in ${(filterEndTime - filterStartTime).toFixed(2)}ms`);
-    console.log(`Displaying ${filteredLinks.length} links out of ${allLinks.length} total links`);
-
-    // Update state with all filtered links
     setLinks(filteredLinks);
   }, [selectedGenre, currentSort]);
 
-  // Update current sort when URL changes
+  // Cargar datos iniciales
   useEffect(() => {
-    const sortParam = searchParams.get('sort');
-    if (sortParam) {
-      setCurrentSort(sortParam);
+    const fetchInitialData = async () => {
+      if (!isInitialLoadRef.current) return;
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Intentar obtener links del caché primero
+        const cachedData = getFromCache();
+        let allLinksData: Link[] | null = null;
+
+        if (cachedData) {
+          allLinksData = cachedData.links;
+          console.log('Using cached links:', allLinksData.length);
+        } else {
+          // Si no hay caché o está expirado, fetch de la base de datos
+          console.log('Fetching all links from database...');
+          const { data, error: linksError } = await supabase
+            .from('links')
+            .select('*')
+            .order('date_added', { ascending: false });
+
+          if (linksError) {
+            throw linksError;
+          }
+          
+          if (data) {
+            allLinksData = data;
+            // Guardar en caché
+            saveToCache(data);
+          }
+        }
+
+        if (allLinksData) {
+          allLinksRef.current = allLinksData;
+          updateDisplayedLinks(allLinksData);
+        }
+
+        isInitialLoadRef.current = false;
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        setError('Failed to load data. Please try again.');
+        setLoading(false);
+      }
+    };
+
+    fetchInitialData();
+  }, [updateDisplayedLinks]);
+
+  // Actualizar enlaces mostrados cuando cambia el género o el orden
+  useEffect(() => {
+    if (!isInitialLoadRef.current) {
+      updateDisplayedLinks(allLinksRef.current);
     }
-  }, [searchParams]);
+  }, [selectedGenre, currentSort, updateDisplayedLinks]);
 
-  // Handle theme changes
-  useEffect(() => {
-    const root = window.document.documentElement;
-    root.classList.remove('theme-dracula', 'theme-catppuccin', 'theme-solarized', 'theme-monokai', 'theme-gruvbox');
-    root.classList.add(`theme-${currentTheme}`);
-  }, [currentTheme]);
+  const handleGenreClick = (genre: string) => {
+    setCurrentView('home');
+    router.push(`/?genre=${encodeURIComponent(genre)}`, { scroll: false });
+  };
 
-  const handleThemeChange = (theme: string) => {
-    setCurrentTheme(theme);
-    localStorage.setItem('theme', theme);
+  const handleHomeClick = () => {
+    setCurrentView('home');
+    router.push('/', { scroll: false });
+  };
+
+  const handleGenresClick = () => {
+    setCurrentView('genres');
+    router.push('/genres', { scroll: false });
+  };
+
+  const handleCombinationsClick = () => {
+    setCurrentView('combinations');
+    router.push('/combinations', { scroll: false });
+  };
+
+  const handleSortChange = (sortBy: string) => {
+    setCurrentSort(sortBy);
+    localStorage.setItem('sort', sortBy);
+    const newParams = new URLSearchParams(searchParams.toString());
+    newParams.set('sort', sortBy);
+    router.push(`/?${newParams.toString()}`, { scroll: false });
   };
 
   // Función para guardar en caché
@@ -161,92 +249,6 @@ function HomeContent() {
       return null;
     }
   };
-
-  // Modificar el useEffect de carga inicial
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      if (!isInitialLoadRef.current) return;
-      
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const totalStartTime = performance.now();
-        console.log('Starting initial data fetch...');
-        
-        // Fetch genres
-        const genresStartTime = performance.now();
-        const genresData = await getGenres();
-        const genresEndTime = performance.now();
-        console.log(`Genres fetched in ${(genresEndTime - genresStartTime).toFixed(2)}ms:`, genresData);
-        setGenres(genresData);
-
-        // Intentar obtener links del caché primero
-        const cachedData = getFromCache();
-        let allLinksData: Link[] | null = null;
-
-        if (cachedData) {
-          allLinksData = cachedData.links;
-          console.log('Using cached links:', allLinksData.length);
-        } else {
-          // Si no hay caché o está expirado, fetch de la base de datos
-          console.log('Fetching all links from database...');
-          const linksStartTime = performance.now();
-          const { data, error: linksError } = await supabase
-            .from('links')
-            .select('*')
-            .order('date_added', { ascending: false });
-
-          if (linksError) {
-            throw linksError;
-          }
-
-          const linksEndTime = performance.now();
-          console.log(`Raw links fetched in ${(linksEndTime - linksStartTime).toFixed(2)}ms: ${data?.length || 0} links`);
-          
-          if (data) {
-            allLinksData = data;
-            // Guardar en caché
-            saveToCache(data);
-          }
-        }
-
-        if (allLinksData) {
-          // Process all links at once
-          const processStartTime = performance.now();
-          const processedLinks = allLinksData.map(link => ({
-            ...link,
-            type: link.type || 'generic',
-            username: link.username || 'anonymous'
-          }));
-          
-          // Store all links in memory
-          allLinksRef.current = processedLinks;
-          
-          // Update displayed links
-          updateDisplayedLinks(processedLinks);
-          
-          const processEndTime = performance.now();
-          console.log(`Links processed and stored in memory in ${(processEndTime - processStartTime).toFixed(2)}ms`);
-          
-          const totalEndTime = performance.now();
-          console.log(`Total initialization time: ${(totalEndTime - totalStartTime).toFixed(2)}ms`);
-          console.log(`Memory usage: ${(processedLinks.length * JSON.stringify(processedLinks[0]).length / 1024).toFixed(2)}KB for all links`);
-        } else {
-          console.log('No links data received');
-          setLinks([]);
-        }
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-        setError('Error loading data. Please try again.');
-      } finally {
-        setLoading(false);
-        isInitialLoadRef.current = false;
-      }
-    };
-
-    fetchInitialData();
-  }, [updateDisplayedLinks]);
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -285,12 +287,6 @@ function HomeContent() {
       });
     }
   }, [toast]);
-
-  // Update displayed links when genre or sort changes
-  useEffect(() => {
-    if (isInitialLoadRef.current) return;
-    updateDisplayedLinks(allLinksRef.current);
-  }, [selectedGenre, currentSort, updateDisplayedLinks]);
 
   // Set up intersection observer for infinite scroll
   useEffect(() => {
@@ -356,34 +352,8 @@ function HomeContent() {
     }
   };
 
-  const handleGenreClick = (genre: string) => {
-    setCurrentView('home');
-    router.push(`/?genre=${encodeURIComponent(genre)}`);
-  };
-
-  const handleHomeClick = () => {
-    setCurrentView('home');
-    router.push('/');
-  };
-
-  const handleGenresClick = () => {
-    setCurrentView('genres');
-  };
-
-  const handleCombinationsClick = () => {
-    setCurrentView('combinations');
-  };
-
   const handleSubmitClick = () => {
     setIsSubmitModalOpen(true);
-  };
-
-  const handleSortChange = (sortBy: string) => {
-    setCurrentSort(sortBy);
-    localStorage.setItem('sort', sortBy);
-    const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set('sort', sortBy);
-    router.push(`/?${newParams.toString()}`);
   };
 
   // Añadir función para actualizar el caché después de añadir un nuevo link
@@ -422,7 +392,7 @@ function HomeContent() {
         onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
-        onThemeChange={handleThemeChange}
+        onThemeChange={setCurrentTheme}
         currentTheme={currentTheme}
       />
       
