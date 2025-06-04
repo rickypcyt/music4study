@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "./dialog";
 import { useCallback, useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from './button';
 import Link from 'next/link';
@@ -38,22 +38,21 @@ export default function Navbar({
 }: NavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
 
-  // Prefetch routes on hover
-  const prefetchRoute = useCallback((route: string) => {
-    router.prefetch(route);
-  }, [router]);
-
   // Handle navigation with loading state
-  const handleNavigation = useCallback((route: string, callback: () => void) => {
+  const handleNavigation = useCallback((view: string, callback: () => void) => {
     setIsNavigating(true);
-    router.push(route, { scroll: false });
+    const params = new URLSearchParams();
+    if (view !== 'home') {
+      params.set('view', view);
+    }
+    router.replace(view === 'home' ? '/' : `/?${params.toString()}`, { scroll: false });
     callback();
-    // Reset navigation state after animation
     setTimeout(() => setIsNavigating(false), 300);
   }, [router]);
 
@@ -72,8 +71,11 @@ export default function Navbar({
 
   // Close mobile menu on route change
   useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [pathname]);
+    const view = searchParams.get('view');
+    if (view === 'genres' || view === 'combinations' || !view) {
+      setIsMobileMenuOpen(false);
+    }
+  }, [searchParams]);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -83,10 +85,9 @@ export default function Navbar({
     <>
       <Link
         href="/"
-        onMouseEnter={() => prefetchRoute('/')}
         onClick={(e) => {
           e.preventDefault();
-          handleNavigation('/', () => {
+          handleNavigation('home', () => {
             onHomeClick();
             setIsMobileMenuOpen(false);
           });
@@ -102,11 +103,10 @@ export default function Navbar({
         <span className="sm:hidden">Home</span>
       </Link>
       <Link
-        href="/genres"
-        onMouseEnter={() => prefetchRoute('/genres')}
+        href="/"
         onClick={(e) => {
           e.preventDefault();
-          handleNavigation('/genres', () => {
+          handleNavigation('genres', () => {
             onGenresClick();
             setIsMobileMenuOpen(false);
           });
@@ -122,11 +122,10 @@ export default function Navbar({
         <span className="sm:hidden">Genres</span>
       </Link>
       <Link
-        href="/combinations"
-        onMouseEnter={() => prefetchRoute('/combinations')}
+        href="/"
         onClick={(e) => {
           e.preventDefault();
-          handleNavigation('/combinations', () => {
+          handleNavigation('combinations', () => {
             onCombinationsClick();
             setIsMobileMenuOpen(false);
           });

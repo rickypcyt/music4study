@@ -49,7 +49,13 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { toast } = useToast();
-  const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>('home');
+  const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>(() => {
+    // Initialize view based on pathname
+    if (pathname === '/') return 'home';
+    if (pathname === '/genres') return 'genres';
+    if (pathname === '/combinations') return 'combinations';
+    return 'home';
+  });
   const [links, setLinks] = useState<Link[]>([]);
   const [genres, setGenres] = useState<{ value: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +82,7 @@ function HomeContent() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
+  const [gridColumns, setGridColumns] = useState(4);
 
   const selectedGenre = searchParams.get('genre');
 
@@ -192,22 +199,28 @@ function HomeContent() {
 
   const handleGenreClick = (genre: string) => {
     setCurrentView('home');
-    router.push(`/?genre=${encodeURIComponent(genre)}`, { scroll: false });
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('genre', genre);
+    router.replace(`/?${params.toString()}`, { scroll: false });
   };
 
   const handleHomeClick = () => {
     setCurrentView('home');
-    router.push('/', { scroll: false });
+    router.replace('/', { scroll: false });
   };
 
   const handleGenresClick = () => {
     setCurrentView('genres');
-    router.push('/genres', { scroll: false });
+    const params = new URLSearchParams();
+    params.set('view', 'genres');
+    router.replace(`/?${params.toString()}`, { scroll: false });
   };
 
   const handleCombinationsClick = () => {
     setCurrentView('combinations');
-    router.push('/combinations', { scroll: false });
+    const params = new URLSearchParams();
+    params.set('view', 'combinations');
+    router.replace(`/?${params.toString()}`, { scroll: false });
   };
 
   const handleSortChange = (sortBy: string) => {
@@ -383,6 +396,38 @@ function HomeContent() {
     cleanupCache();
   }, [currentView, cleanupCache]);
 
+  // Update view when pathname changes
+  useEffect(() => {
+    const view = searchParams.get('view');
+    if (view === 'genres' || view === 'combinations') {
+      setCurrentView(view);
+    } else if (searchParams.has('genre')) {
+      setCurrentView('home');
+    } else {
+      setCurrentView('home');
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const calculateGridColumns = () => {
+      if (typeof window !== 'undefined') {
+        if (window.innerWidth >= 1280) {
+          setGridColumns(4);
+        } else if (window.innerWidth >= 1024) {
+          setGridColumns(3);
+        } else if (window.innerWidth >= 640) {
+          setGridColumns(2);
+        } else {
+          setGridColumns(1);
+        }
+      }
+    };
+
+    calculateGridColumns();
+    window.addEventListener('resize', calculateGridColumns);
+    return () => window.removeEventListener('resize', calculateGridColumns);
+  }, []);
+
   if (error) {
     return (
       <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
@@ -417,9 +462,9 @@ function HomeContent() {
       <main className="w-full px-2 sm:px-4 lg:px-3 py-6">
         {currentView === 'genres' ? (
           <>
-            <div className="text-center mb-1">
-              <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">Genres</h1>
-              <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
+            <div className="text-center mb-8">
+              <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
+              <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
                 Explore music by genre. Each genre has its own unique characteristics and mood.
               </p>
             </div>
@@ -486,13 +531,12 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <div className="min-h-[60vh]">
-                <VirtualizedGrid
-                  items={links}
-                  renderItem={(link) => <LinkCard key={link.id} link={link} />}
-                  columns={window.innerWidth >= 1280 ? 4 : window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1}
-                  className="min-h-[400px]"
-                />
+              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {links.map(link => (
+                  <div key={link.id}>
+                    <LinkCard link={link} />
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center text-foreground/70 py-12">
