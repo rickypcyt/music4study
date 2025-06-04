@@ -3,6 +3,7 @@ import './globals.css';
 import { Geist, Geist_Mono } from 'next/font/google';
 
 import type { Metadata } from 'next';
+import PageTransition from '@/components/ui/PageTransition';
 import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
 import ResourcePreloader from '@/components/ResourcePreloader';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
@@ -109,14 +110,23 @@ export default function RootLayout({
         <meta name="google-site-verification" content="emfPXJ9fdKnImVBYpVMGTCGINjQH1rj_n8BwFitFpuI" />
         <SpotifyScript />
         <ResourcePreloader />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
       </head>
       <body className={cn(
         "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased",
         geistSans.variable,
         geistMono.variable
       )}>
-        <Suspense fallback={<div>Loading...</div>}>
-          {children}
+        <Suspense fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-pulse text-foreground/70">Loading...</div>
+          </div>
+        }>
+          <PageTransition>
+            {children}
+          </PageTransition>
         </Suspense>
         <Toaster />
         <PerformanceMonitor />

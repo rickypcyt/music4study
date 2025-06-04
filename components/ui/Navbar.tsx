@@ -7,11 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog";
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { Button } from './button';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 interface NavbarProps {
   currentView: 'home' | 'genres' | 'combinations';
@@ -36,10 +36,26 @@ export default function Navbar({
   onThemeChange,
   currentTheme,
 }: NavbarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const pathname = usePathname();
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // Prefetch routes on hover
+  const prefetchRoute = useCallback((route: string) => {
+    router.prefetch(route);
+  }, [router]);
+
+  // Handle navigation with loading state
+  const handleNavigation = useCallback((route: string, callback: () => void) => {
+    setIsNavigating(true);
+    router.push(route, { scroll: false });
+    callback();
+    // Reset navigation state after animation
+    setTimeout(() => setIsNavigating(false), 300);
+  }, [router]);
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -67,15 +83,19 @@ export default function Navbar({
     <>
       <Link
         href="/"
-        onClick={() => {
-          onHomeClick();
-          setIsMobileMenuOpen(false);
+        onMouseEnter={() => prefetchRoute('/')}
+        onClick={(e) => {
+          e.preventDefault();
+          handleNavigation('/', () => {
+            onHomeClick();
+            setIsMobileMenuOpen(false);
+          });
         }}
         className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'home'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        }`}
+        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
         <Home className="h-5 w-5 mr-2" />
         <span className="hidden sm:inline">Home</span>
@@ -83,15 +103,19 @@ export default function Navbar({
       </Link>
       <Link
         href="/genres"
-        onClick={() => {
-          onGenresClick();
-          setIsMobileMenuOpen(false);
+        onMouseEnter={() => prefetchRoute('/genres')}
+        onClick={(e) => {
+          e.preventDefault();
+          handleNavigation('/genres', () => {
+            onGenresClick();
+            setIsMobileMenuOpen(false);
+          });
         }}
         className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'genres'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        }`}
+        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
         <Tags className="h-5 w-5 mr-2" />
         <span className="hidden sm:inline">Genres</span>
@@ -99,15 +123,19 @@ export default function Navbar({
       </Link>
       <Link
         href="/combinations"
-        onClick={() => {
-          onCombinationsClick();
-          setIsMobileMenuOpen(false);
+        onMouseEnter={() => prefetchRoute('/combinations')}
+        onClick={(e) => {
+          e.preventDefault();
+          handleNavigation('/combinations', () => {
+            onCombinationsClick();
+            setIsMobileMenuOpen(false);
+          });
         }}
         className={`inline-flex items-center px-1 pt-1 border-b-2 text-base font-medium transition-colors duration-200 ${
           currentView === 'combinations'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        }`}
+        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
         <Layers className="h-5 w-5 mr-2" />
         <span className="hidden sm:inline">Combinations</span>

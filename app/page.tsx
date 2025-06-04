@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import GenreCloud from '@/components/ui/GenreCloud';
@@ -47,6 +47,7 @@ interface LinksCache {
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>('home');
   const [links, setLinks] = useState<Link[]>([]);
