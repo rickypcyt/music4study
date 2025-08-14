@@ -11,6 +11,13 @@ import { Pencil, Plus, Check, X } from 'lucide-react';
 
 type FieldError = string | null;
 
+// Type guard to safely check for an error code without using `any`
+const hasStringCode = (e: unknown): e is { code: string } => {
+    if (typeof e !== 'object' || e === null) return false;
+    const rec = e as Record<string, unknown>;
+    return typeof rec.code === 'string';
+};
+
 interface FormErrors {
     url: FieldError;
     type: FieldError;
@@ -83,13 +90,34 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
 
         setLoading(true);
         try {
+            // Normalize URL and check for duplicates (case-insensitive)
+            const cleanUrl = formData.url.trim();
+            const { data: existing, error: checkError } = await supabase
+                .from('links')
+                .select('id')
+                .ilike('url', cleanUrl)
+                .limit(1);
+            if (checkError) throw checkError;
+            if (existing && existing.length > 0) {
+                setErrors(prev => ({ ...prev, url: 'This link already exists' }));
+                toast({
+                    title: 'Duplicate link',
+                    description: 'That URL is already in the list.',
+                    variant: 'destructive',
+                });
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('links')
-                .insert([{
-                    ...formData,
-                    date_added: new Date().toISOString()
-                    , username: username
-                }])
+                .insert([
+                    {
+                        ...formData,
+                        url: cleanUrl,
+                        date_added: new Date().toISOString(),
+                        username: username,
+                    },
+                ])
                 .select()
                 .single();
 
@@ -108,11 +136,21 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
             onClose();
         } catch (error) {
             console.error('Error submitting form:', error);
-            toast({
-                title: "Error",
-                description: "Failed to share music. Please try again.",
-                variant: "destructive",
-            });
+            // Unique constraint violation (e.g., if a DB unique index exists on url)
+            if (hasStringCode(error) && error.code === '23505') {
+                setErrors(prev => ({ ...prev, url: 'This link already exists' }));
+                toast({
+                    title: 'Duplicate link',
+                    description: 'That URL is already in the list.',
+                    variant: 'destructive',
+                });
+            } else {
+                toast({
+                    title: "Error",
+                    description: "Failed to share music. Please try again.",
+                    variant: "destructive",
+                });
+            }
         } finally {
             setLoading(false);
         }

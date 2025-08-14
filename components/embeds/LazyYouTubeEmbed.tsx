@@ -77,6 +77,17 @@ export default function LazyYouTubeEmbed({
     setLoadError(true);
   };
 
+  // Persist last played timestamp per linkId in localStorage
+  const recordLastPlayed = () => {
+    try {
+      const key = 'm4s_last_played';
+      const raw = localStorage.getItem(key);
+      const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+      map[linkId] = new Date().toISOString();
+      localStorage.setItem(key, JSON.stringify(map));
+    } catch {}
+  };
+
   if (isBlocked || loadError) {
     return (
       <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
@@ -129,7 +140,10 @@ export default function LazyYouTubeEmbed({
       {!isLoaded ? (
         <div 
           className="relative w-full h-full cursor-pointer group"
-          onClick={() => setIsLoaded(true)}
+          onClick={() => {
+            recordLastPlayed();
+            setIsLoaded(true);
+          }}
         >
           {/* Loading skeleton */}
           {!isThumbnailLoaded && (

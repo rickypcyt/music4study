@@ -95,7 +95,11 @@ const UsernameModal = memo(function UsernameModal({ open, onOpenChange, userId, 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+      <DialogContent
+        className="bg-[#1a1814] border-[#e6e2d9]/10"
+        onInteractOutside={() => onOpenChange(false)}
+        onEscapeKeyDown={() => onOpenChange(false)}
+      >
         <DialogHeader>
           <DialogTitle>Choose your username</DialogTitle>
         </DialogHeader>
@@ -665,7 +669,11 @@ function HomeContent() {
       </main>
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
+        <DialogContent
+          className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]"
+          onInteractOutside={() => setIsSubmitModalOpen(false)}
+          onEscapeKeyDown={() => setIsSubmitModalOpen(false)}
+        >
           <DialogHeader>
             <DialogTitle>Submit Track</DialogTitle>
           </DialogHeader>
@@ -684,7 +692,11 @@ function HomeContent() {
 
       {/* Login Modal */}
       <Dialog open={isLoginModalOpen} onOpenChange={setIsLoginModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogContent
+          className="bg-[#1a1814] border-[#e6e2d9]/10"
+          onInteractOutside={() => setIsLoginModalOpen(false)}
+          onEscapeKeyDown={() => setIsLoginModalOpen(false)}
+        >
           <DialogHeader>
             <DialogTitle>Sign in to share your music</DialogTitle>
           </DialogHeader>
@@ -704,7 +716,11 @@ function HomeContent() {
       />
 
       <Dialog open={isCreateCombinationModalOpen} onOpenChange={setIsCreateCombinationModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogContent
+          className="bg-[#1a1814] border-[#e6e2d9]/10"
+          onInteractOutside={() => setIsCreateCombinationModalOpen(false)}
+          onEscapeKeyDown={() => setIsCreateCombinationModalOpen(false)}
+        >
           <DialogHeader>
             <DialogTitle>Create New Combination</DialogTitle>
           </DialogHeader>

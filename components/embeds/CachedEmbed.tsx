@@ -31,6 +31,17 @@ export default function CachedEmbed({
   const embedRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // Persist last played timestamp per linkId in localStorage
+  const recordLastPlayed = () => {
+    try {
+      const key = 'm4s_last_played';
+      const raw = localStorage.getItem(key);
+      const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+      map[linkId] = new Date().toISOString();
+      localStorage.setItem(key, JSON.stringify(map));
+    } catch {}
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -90,6 +101,7 @@ export default function CachedEmbed({
   }, [url, onLoad, onError]);
 
   const handleThumbnailClick = () => {
+    recordLastPlayed();
     setShowThumbnail(false);
   };
 
