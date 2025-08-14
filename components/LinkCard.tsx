@@ -2,12 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CachedEmbed from './embeds/CachedEmbed';
 import { Plus } from "lucide-react";
-import { Spotify } from 'react-spotify-embed';
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
 
@@ -41,55 +40,7 @@ const formatDate = (dateString: string) => {
   });
 };
 
-// Componente memoizado para el contenido del embed
-const SpotifyEmbed = memo(({ url }: { url: string }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const embedRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const currentEmbedRef = embedRef.current;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !isLoaded) {
-            setIsLoaded(true);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-
-    if (currentEmbedRef) {
-      observer.observe(currentEmbedRef);
-    }
-
-    return () => {
-      if (currentEmbedRef) {
-        observer.unobserve(currentEmbedRef);
-      }
-    };
-  }, [isLoaded]);
-
-  if (!isLoaded) {
-    return (
-      <div 
-        ref={embedRef}
-        className="w-full aspect-[16/9] bg-[#e6e2d9]/5 animate-pulse rounded-t-lg"
-      />
-    );
-  }
-
-  return (
-    <div ref={embedRef} className="w-full aspect-[16/9]">
-      <div className="w-full h-full">
-        <Spotify link={url} className="w-full h-full" />
-      </div>
-    </div>
-  );
-});
-
-SpotifyEmbed.displayName = 'SpotifyEmbed';
 
 export default function LinkCard({ link, onRemoved }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

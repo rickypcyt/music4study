@@ -49,6 +49,8 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
         type: '',
         genre: ''
     });
+    const [customTypeMode, setCustomTypeMode] = useState(false);
+    const [customTypeValue, setCustomTypeValue] = useState('');
     const [customGenreMode, setCustomGenreMode] = useState(false);
     const [customGenreValue, setCustomGenreValue] = useState('');
     const [errors, setErrors] = useState<FormErrors>({ url: null, type: null, genre: null });
@@ -185,12 +187,73 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
                 </div>
 
                 <div>
-                    <Input
-                        placeholder="Type (e.g., Video, Mix, Song)"
-                        value={formData.type}
-                        onChange={e => handleChange('type', e.target.value)}
-                        className={`bg-background/70 border-border/40 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary ${errors.type ? 'border-destructive' : ''}`}
-                    />
+                    {!customTypeMode ? (
+                        <div className="flex items-center gap-2">
+                            <Select
+                                value={formData.type}
+                                onValueChange={(value) => handleChange('type', value)}
+                            >
+                                <SelectTrigger className={`bg-background/70 border-border/40 text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0 ${errors.type ? 'border-destructive' : ''} flex-1 min-w-0`}>
+                                    <SelectValue placeholder="Select a type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background border-border/40">
+                                    {['Mix', 'Video', 'Song'].map((t) => (
+                                        <SelectItem key={t} value={t}>
+                                            {t}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => { setCustomTypeMode(true); setCustomTypeValue(''); }}
+                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                                title="Add custom type"
+                            >
+                                <Plus className="h-5 w-5" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2">
+                            <input
+                                list="types-list"
+                                placeholder="Type or search a type"
+                                value={customTypeValue}
+                                onChange={(e) => setCustomTypeValue(e.target.value)}
+                                className="flex-1 min-w-0 h-11 rounded-md bg-background/70 border border-border/40 px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
+                            />
+                            <datalist id="types-list">
+                                {['Mix', 'Video', 'Song'].map((t) => (
+                                    <option key={t} value={t} />
+                                ))}
+                            </datalist>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    const val = customTypeValue.trim();
+                                    if (!val) return;
+                                    handleChange('type', val);
+                                    setCustomTypeMode(false);
+                                    setCustomTypeValue('');
+                                }}
+                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                                title="Use this type"
+                            >
+                                <Check className="h-5 w-5" />
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => { setCustomTypeMode(false); setCustomTypeValue(''); }}
+                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                                title="Cancel"
+                            >
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
+                    )}
                     {errors.type && (
                         <p className="mt-1 text-destructive">{errors.type}</p>
                     )}
