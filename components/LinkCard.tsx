@@ -23,6 +23,7 @@ interface Link {
 
 interface LinkCardProps {
   link: Link;
+  onRemoved?: (id: string) => void;
 }
 
 interface Combination {
@@ -90,7 +91,7 @@ const SpotifyEmbed = memo(({ url }: { url: string }) => {
 
 SpotifyEmbed.displayName = 'SpotifyEmbed';
 
-export default function LinkCard({ link }: LinkCardProps) {
+export default function LinkCard({ link, onRemoved }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState("");
@@ -224,19 +225,27 @@ export default function LinkCard({ link }: LinkCardProps) {
         <CardContent className="p-2">
           {(isSpotify || isYouTube || isSoundCloud) ? (
             <div className="w-full">
-              <CachedEmbed 
+          <CachedEmbed 
                 url={link.url}
                 linkId={link.id}
                 onLoad={() => {
                   // You can add any additional logic here when the embed loads
                 }}
-                onError={() => {
-                  toast({
-                    title: "Error",
-                    description: "Failed to load embed. You can still open the link in a new tab.",
-                    variant: "destructive",
-                  });
-                }}
+            onError={async () => {
+              toast({
+                title: "Error",
+                description: "Failed to load embed. You can still open the link in a new tab.",
+                variant: "destructive",
+              });
+            }}
+            onUnavailable={() => {
+              // Remover del estado superior cuando YouTube esté no disponible
+              onRemoved?.(link.id);
+              toast({
+                title: "Removed",
+                description: "Unavailable YouTube video was removed.",
+              });
+            }}
               />
             </div>
           ) : (

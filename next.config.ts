@@ -33,29 +33,30 @@ const nextConfig: NextConfig = {
               style-src 'self' 'unsafe-inline' https:;
               img-src 'self' data: https: blob:;
               media-src 'self' https: blob:;
-              frame-src 'self' 
-                https://www.youtube.com 
-                https://youtube.com 
-                https://www.youtube-nocookie.com 
-                https://youtube-nocookie.com 
-                https://youtu.be 
-                https://www.youtu.be 
-                https://www.youtube.com/embed 
-                https://youtube.com/embed 
-                https://www.youtube-nocookie.com/embed 
-                https://youtube-nocookie.com/embed 
-                https://w.soundcloud.com 
-                https://soundcloud.com 
-                https://open.spotify.com 
-                https://player.spotify.com 
-                https://*.spotify.com 
-                https://*.youtube.com 
-                https://*.youtube-nocookie.com 
-                https://*.youtu.be 
+              frame-src 'self'
+                https://www.youtube.com
+                https://youtube.com
+                https://www.youtube-nocookie.com
+                https://youtube-nocookie.com
+                https://youtu.be
+                https://www.youtu.be
+                https://www.youtube.com/embed
+                https://youtube.com/embed
+                https://www.youtube-nocookie.com/embed
+                https://youtube-nocookie.com/embed
+                https://w.soundcloud.com
+                https://soundcloud.com
+                https://open.spotify.com
+                https://player.spotify.com
+                https://*.spotify.com
+                https://*.youtube.com
+                https://*.youtube-nocookie.com
+                https://*.youtu.be
                 https://*.soundcloud.com;
               connect-src 'self' https: wss:;
-              font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com;
-              preload-src 'self' https://fonts.gstatic.com;
+              font-src 'self' data: https://fonts.gstatic.com;
+              base-uri 'self';
+              form-action 'self';
             `.replace(/\s+/g, ' ').trim()
           }
         ],

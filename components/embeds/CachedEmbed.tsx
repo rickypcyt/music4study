@@ -14,6 +14,7 @@ interface CachedEmbedProps {
   className?: string;
   onLoad?: () => void;
   onError?: () => void;
+  onUnavailable?: () => void;
 }
 
 export default function CachedEmbed({ 
@@ -21,7 +22,8 @@ export default function CachedEmbed({
   linkId,
   className = '', 
   onLoad, 
-  onError 
+  onError,
+  onUnavailable,
 }: CachedEmbedProps) {
   const [embedData, setEmbedData] = useState<{ html: string; error?: boolean; thumbnailUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -171,6 +173,7 @@ export default function CachedEmbed({
           title={url}
           linkId={linkId}
           className={className}
+          onUnavailable={onUnavailable}
         />
       );
     }

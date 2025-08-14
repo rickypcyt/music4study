@@ -11,6 +11,7 @@ interface LazyYouTubeEmbedProps {
   linkId: string;
   className?: string;
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
+  onUnavailable?: () => void;
 }
 
 interface VideoInfo {
@@ -23,7 +24,8 @@ export default function LazyYouTubeEmbed({
   title: initialTitle,
   linkId,
   className = '',
-  thumbnailQuality = 'hqdefault'
+  thumbnailQuality = 'hqdefault',
+  onUnavailable
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -51,10 +53,12 @@ export default function LazyYouTubeEmbed({
 
     const checkAvailability = async () => {
       try {
-        const isAvailable = await checkVideoAvailability(videoId);
+        const { isAvailable } = await checkVideoAvailability(videoId);
         if (!isAvailable) {
-          setIsBlocked(true);
+          // Mark as load error (will show "Video Unavailable")
+          setLoadError(true);
           await removeUnavailableVideo(linkId);
+          onUnavailable?.();
         } else {
           // Only fetch video info if the video is available
           fetchVideoInfo();
@@ -66,7 +70,7 @@ export default function LazyYouTubeEmbed({
     };
 
     checkAvailability();
-  }, [videoId, linkId, initialTitle]);
+  }, [videoId, linkId, initialTitle, onUnavailable]);
 
   const handleIframeError = () => {
     setIsBlocked(true);
@@ -140,6 +144,13 @@ export default function LazyYouTubeEmbed({
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             onLoad={() => setIsThumbnailLoaded(true)}
+            onError={async () => {
+              setLoadError(true);
+              try {
+                await removeUnavailableVideo(linkId);
+              } catch {}
+              onUnavailable?.();
+            }}
             priority={false}
             loading="lazy"
             quality={85}

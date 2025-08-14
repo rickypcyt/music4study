@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, memo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,86 @@ interface LinksCache {
   lastUpdated: string;
 }
 
+interface UsernameModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: string;
+  onSaved: (username: string) => void;
+}
+
+const UsernameModal = memo(function UsernameModal({ open, onOpenChange, userId, onSaved }: UsernameModalProps) {
+  const { toast } = useToast();
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setValue('');
+    }
+  }, [open]);
+
+  const save = async () => {
+    const name = value.trim();
+    if (!name || !userId) return;
+    setSaving(true);
+    try {
+      const { data: existing, error: checkError } = await supabase
+        .from('profiles_m4s')
+        .select('id')
+        .ilike('username', name)
+        .neq('id', userId)
+        .limit(1);
+      if (checkError) throw checkError;
+      if (existing && existing.length > 0) {
+        toast({ title: 'Username taken', description: 'Please choose another.', variant: 'destructive' });
+        return;
+      }
+      const { error } = await supabase
+        .from('profiles_m4s')
+        .upsert({ id: userId, username: name, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      if (error) throw error;
+      localStorage.setItem('m4s_username', name);
+      onSaved(name);
+      onOpenChange(false);
+      toast({ title: 'Saved', description: 'Username saved.' });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to save username.', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogHeader>
+          <DialogTitle>Choose your username</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <input
+            placeholder="Username"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className="w-full h-14 rounded-lg bg-background/80 border-2 border-border/40 px-4 text-lg text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
+            maxLength={30}
+            autoFocus
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="text"
+          />
+          <div className="flex gap-3">
+            <Button onClick={save} disabled={saving} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">Cancel</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,6 +141,11 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string>('');
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
@@ -117,7 +202,8 @@ function HomeContent() {
 
     // Filtrar por género si hay uno seleccionado
     if (selectedGenre) {
-      filteredLinks = filteredLinks.filter(link => link.genre === selectedGenre);
+      const selected = selectedGenre.trim().toLowerCase();
+      filteredLinks = filteredLinks.filter(link => link.genre.trim().toLowerCase() === selected);
     }
 
     // Ordenar los enlaces
@@ -200,6 +286,7 @@ function HomeContent() {
     setCurrentView('home');
     const params = new URLSearchParams(searchParams.toString());
     params.set('genre', genre);
+    params.delete('view');
     router.replace(`/?${params.toString()}`, { scroll: false });
   };
 
@@ -229,6 +316,47 @@ function HomeContent() {
     newParams.set('sort', sortBy);
     router.push(`/?${newParams.toString()}`, { scroll: false });
   };
+
+  // Auth: load user and username from profiles_m4s
+  useEffect(() => {
+    let mounted = true;
+    const initAuth = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        const user = data?.user ?? null;
+        if (!mounted) return;
+        setIsLoggedIn(!!user);
+        setUserId(user?.id ?? null);
+        if (user?.id) {
+          const { data: prof } = await supabase
+            .from('profiles_m4s')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+          const nameFromDb = prof?.username || localStorage.getItem('m4s_username') || '';
+          setUsername(nameFromDb);
+        } else {
+          setUsername('');
+        }
+      } finally {
+      }
+    };
+    initAuth();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => { mounted = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
+      await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    } finally {
+    }
+  };
+  // removed unused usernameInput state
 
   // Función para guardar en caché
   const saveToCache = (links: Link[]) => {
@@ -262,6 +390,14 @@ function HomeContent() {
       console.error('Error parsing cache:', error);
       return null;
     }
+  };
+
+  // Cuando un link sea removido por estar unavailable
+  const handleLinkRemoved = (removedId: string) => {
+    const updated = allLinksRef.current.filter(l => l.id !== removedId);
+    allLinksRef.current = updated;
+    saveToCache(updated);
+    updateDisplayedLinks(updated);
   };
 
   const fetchCombinations = useCallback(async () => {
@@ -367,6 +503,14 @@ function HomeContent() {
   };
 
   const handleSubmitClick = () => {
+    if (!isLoggedIn) {
+      setIsLoginModalOpen(true);
+      return;
+    }
+    if (!username) {
+      setIsUsernameModalOpen(true);
+      return;
+    }
     setIsSubmitModalOpen(true);
   };
 
@@ -381,27 +525,21 @@ function HomeContent() {
 
   // Función para limpiar el caché cuando no se necesita
   const cleanupCache = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      // Limpiar caché si no estamos en la vista principal
-      if (currentView !== 'home') {
-        localStorage.removeItem('music4study_links_cache');
-        allLinksRef.current = [];
-      }
-    }
-  }, [currentView]);
+    // Mantener caché y datos en memoria para evitar bugs al regresar a Home
+  }, []);
 
   // Limpiar caché cuando cambiamos de vista
   useEffect(() => {
     cleanupCache();
   }, [currentView, cleanupCache]);
 
-  // Update view when pathname changes
+  // Update view when search params change
   useEffect(() => {
     const view = searchParams.get('view');
-    if (view === 'genres' || view === 'combinations') {
-      setCurrentView(view);
-    } else if (searchParams.has('genre')) {
+    if (searchParams.has('genre')) {
       setCurrentView('home');
+    } else if (view === 'genres' || view === 'combinations') {
+      setCurrentView(view);
     } else {
       setCurrentView('home');
     }
@@ -438,7 +576,8 @@ function HomeContent() {
         currentTheme={currentTheme}
       />
       
-      <main className="w-full px-2 sm:px-4 lg:px-3 py-6">
+      <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6">
+        <div className="w-full">
         {currentView === 'genres' ? (
           <>
             <div className="text-center mb-8">
@@ -447,12 +586,10 @@ function HomeContent() {
                 Explore music by genre. Each genre has its own unique characteristics and mood.
               </p>
             </div>
-            <div className="flex justify-center items-center min-h-[60vh]">
-              <GenreCloud 
-                tags={genres} 
-                onGenreClick={handleGenreClick}
-              />
-            </div>
+            <GenreCloud 
+              tags={genres} 
+              onGenreClick={handleGenreClick}
+            />
           </>
         ) : currentView === 'combinations' ? (
           <>
@@ -481,7 +618,7 @@ function HomeContent() {
                       <VirtualizedGrid
                         items={combination.links}
                         renderItem={(link) => <LinkCard key={link.id} link={link} />}
-                        columns={3}
+                        columns={4}
                         className="min-h-[200px]"
                       />
                     ) : (
@@ -510,10 +647,10 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
                 {links.map(link => (
                   <div key={link.id}>
-                    <LinkCard link={link} />
+                    <LinkCard link={link} onRemoved={handleLinkRemoved} />
                   </div>
                 ))}
               </div>
@@ -524,17 +661,47 @@ function HomeContent() {
             )}
           </>
         )}
+        </div>
       </main>
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
         <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
+          <DialogHeader>
+            <DialogTitle>Submit Track</DialogTitle>
+          </DialogHeader>
           <SubmitForm 
             onClose={() => setIsSubmitModalOpen(false)} 
             genres={genres} 
             onNewLinkAdded={handleNewLinkAdded}
+            username={username}
+            onEditUsername={() => {
+              setIsSubmitModalOpen(false);
+              setIsUsernameModalOpen(true);
+            }}
           />
         </DialogContent>
       </Dialog>
+
+      {/* Login Modal */}
+      <Dialog open={isLoginModalOpen} onOpenChange={setIsLoginModalOpen}>
+        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+          <DialogHeader>
+            <DialogTitle>Sign in to share your music</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Button onClick={handleGoogleLogin} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3">
+              Continue with Google
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <UsernameModal
+        open={isUsernameModalOpen}
+        onOpenChange={setIsUsernameModalOpen}
+        userId={userId || ''}
+        onSaved={(name) => setUsername(name)}
+      />
 
       <Dialog open={isCreateCombinationModalOpen} onOpenChange={setIsCreateCombinationModalOpen}>
         <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
