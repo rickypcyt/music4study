@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Home, Layers, Tags } from 'lucide-react';
+import { ArrowUpDown, Home, Layers, Tags, Menu, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -89,13 +89,13 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-2 pt-1 border-b-2 text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
           currentView === 'home'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
-        <Home className="h-6 w-6 mr-2" />
+        <Home className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Home</span>
       </Link>
       <Link
@@ -107,13 +107,13 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-2 pt-1 border-b-2 text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
           currentView === 'genres'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
-        <Tags className="h-6 w-6 mr-2" />
+        <Tags className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Genres</span>
       </Link>
       <Link
@@ -125,30 +125,30 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-2 pt-1 border-b-2 text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
           currentView === 'combinations'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
       >
-        <Layers className="h-6 w-6 mr-2" />
+        <Layers className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Combinations</span>
       </Link>
     </>
   );
 
   const ControlButtons = () => (
-    <div className="flex items-center space-x-4">
+    <div className="flex items-center space-x-3 lg:space-x-4">
       <button
         onClick={() => setShowSortMenu(true)}
-        className="inline-flex items-center justify-center px-4 py-2 rounded-md text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+        className="inline-flex items-center justify-center px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
       >
-        <ArrowUpDown className="h-6 w-6 mr-2" />
+        <ArrowUpDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
         <span>Sort</span>
       </button>
       <Button
         onClick={onSubmitClick}
-        className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-4 py-2 transition-colors duration-200"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground text-base lg:text-lg px-3 lg:px-4 py-2 transition-colors duration-200"
       >
         <span>Submit Track</span>
       </Button>
@@ -157,35 +157,77 @@ export default function Navbar({
 
   return (
     <nav className="navbar sticky top-0 z-50">
-      <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12">
+      <div className="w-full px-4 md:px-5 lg:px-10 xl:px-12">
         <div className="flex justify-center h-16">
-          {/* Mobile menu button removed to keep a single-line navbar */}
-          <div className="hidden" />
-
-          {/* Main Content: Logo, Nav Links, Controls - Centered Group */}
+          {/* Main Content: Logo, Nav Links, Controls */}
           <div className="flex items-center justify-between w-full">
 
             {/* Logo */}
             <div className="flex-shrink-0">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-mono text-foreground tracking-wider font-light">
+              <h1 className="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-mono text-foreground tracking-wider font-light">
                 Music4Study
               </h1>
             </div>
 
-            {/* Nav Links - single line, all breakpoints */}
-            <div className="flex space-x-6 items-center">
+            {/* Desktop Nav Links */}
+            <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
               <NavLinks />
             </div>
 
-            {/* Controls - single line */}
-            <div className="flex items-center">
+            {/* Desktop Controls */}
+            <div className="hidden md:flex items-center">
               <ControlButtons />
+            </div>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center">
+              <button
+                aria-label={isMobileMenuOpen ? 'Cerrar menú' : 'Abrir menú'}
+                className="mobile-menu-button inline-flex items-center justify-center p-2 rounded-md text-foreground hover:bg-accent/50 transition"
+                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="h-6 w-6" />
+                ) : (
+                  <Menu className="h-6 w-6" />
+                )}
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile menu removed */}
+      {/* Mobile Menu Panel */}
+      {isMobileMenuOpen && (
+        <div className="mobile-menu md:hidden border-t border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="px-4 py-3 space-y-3">
+            <div className="flex flex-col space-y-2">
+              {/* Mobile Nav Links */}
+              <div className="flex flex-col space-y-1">
+                <NavLinks />
+              </div>
+            </div>
+            {/* Mobile Controls */}
+            <div className="pt-2 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setShowSortMenu(true)}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors"
+                >
+                  <ArrowUpDown className="h-5 w-5 mr-2" />
+                  <span>Sort</span>
+                </button>
+                <Button
+                  onClick={onSubmitClick}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-base px-3 py-2"
+                >
+                  Submit Track
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sort Menu Dialog */}
       {showSortMenu && (
