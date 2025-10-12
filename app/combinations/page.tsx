@@ -2,15 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Link } from '@/app/types';
 import CombinationsGrid from '@/app/components/combinations/CombinationsGrid';
-
-interface Combination {
-  id: number;
-  name: string;
-  created_at: string;
-  links: Link[];
-}
 
 export default function CombinationsPage() {
   const [loading, setLoading] = useState(true);
@@ -31,7 +23,7 @@ export default function CombinationsPage() {
 
       // Obtener los enlaces para cada combinación
       const combinationsWithLinks = await Promise.all(
-        combinationsData.map(async (combo: any) => {
+        combinationsData.map(async (combo: { id: number; name: string; created_at: string }) => {
           const { data: linksData, error: linksError } = await supabase
             .from('combination_links')
             .select('link_id')
@@ -40,7 +32,7 @@ export default function CombinationsPage() {
           if (linksError) throw linksError;
 
           // Obtener los detalles de los enlaces
-          const linkIds = linksData.map((item: any) => item.link_id);
+          const linkIds = linksData.map((item: { link_id: number }) => item.link_id);
           const { data: links, error: linksDetailsError } = await supabase
             .from('links')
             .select('*')

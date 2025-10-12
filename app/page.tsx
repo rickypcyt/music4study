@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Suspense, memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -44,89 +44,13 @@ interface LinksCache {
   lastUpdated: string;
 }
 
-interface UsernameModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  userId: string;
-  onSaved: (username: string) => void;
-}
-
-const UsernameModal = memo(function UsernameModal({ open, onOpenChange, userId, onSaved }: UsernameModalProps) {
-  const { toast } = useToast();
-  const [value, setValue] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setValue('');
-    }
-  }, [open]);
-
-  const save = async () => {
-    const name = value.trim();
-    if (!name || !userId) return;
-    setSaving(true);
-    try {
-      const { data: existing, error: checkError } = await supabase
-        .from('profiles_m4s')
-        .select('id')
-        .ilike('username', name)
-        .neq('id', userId)
-        .limit(1);
-      if (checkError) throw checkError;
-      if (existing && existing.length > 0) {
-        toast({ title: 'Username taken', description: 'Please choose another.', variant: 'destructive' });
-        return;
-      }
-      const { error } = await supabase
-        .from('profiles_m4s')
-        .upsert({ id: userId, username: name, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-      if (error) throw error;
-      localStorage.setItem('m4s_username', name);
-      onSaved(name);
-      onOpenChange(false);
-      toast({ title: 'Saved', description: 'Username saved.' });
-    } catch {
-      toast({ title: 'Error', description: 'Failed to save username.', variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="bg-[#1a1814] border-[#e6e2d9]/10"
-        onInteractOutside={() => onOpenChange(false)}
-        onEscapeKeyDown={() => onOpenChange(false)}
-      >
-        <DialogHeader>
-          <DialogTitle>Choose your username</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <input
-            placeholder="Username"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            className="w-full h-14 rounded-lg bg-background/80 border-2 border-border/40 px-4 text-lg text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
-            maxLength={30}
-            autoFocus
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            inputMode="text"
-          />
-          <div className="flex gap-3">
-            <Button onClick={save} disabled={saving} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">Cancel</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-});
+// Interfaz comentada ya que no se está utilizando actualmente
+// interface UsernameModalProps {
+//   open: boolean;
+//   onOpenChange: (open: boolean) => void;
+//   userId: string;
+//   onSaved: (username: string) => void;
+// }
 
 function HomeContent() {
   const router = useRouter();
@@ -146,8 +70,7 @@ function HomeContent() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
-  const [username, setUsername] = useState<string>('');
+  const [username] = useState<string>('');
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
@@ -417,25 +340,36 @@ function HomeContent() {
       // Obtenemos todos los IDs de las combinaciones
       const combinationIds = combinationsData.map(c => c.id);
 
-      // Obtenemos todos los enlaces de las combinaciones en una sola consulta
+      // Obtenemos los enlaces de las combinaciones
       const { data: linksData, error: linksError } = await supabase
         .from('combination_links')
         .select(`
           combination_id,
-          link:links(*)
-        `)
+          links:link_id (
+            id,
+            title,
+            url,
+            genre,
+            date_added,
+            type,
+            username
+          )`)
         .in('combination_id', combinationIds);
 
       if (linksError) throw linksError;
 
       // Creamos un mapa para agrupar los enlaces por combination_id
-      const linksByCombination = linksData.reduce((acc, { combination_id, link }) => {
+      const linksByCombination = linksData.reduce<Record<string, Link[]>>((acc, { combination_id, links }) => {
         if (!acc[combination_id]) {
           acc[combination_id] = [];
         }
-        acc[combination_id].push(link);
+        if (links) {
+          // Aseguramos que links sea un array antes de usar el spread operator
+          const linksArray = Array.isArray(links) ? links : [links];
+          acc[combination_id].push(...linksArray);
+        }
         return acc;
-      }, {} as Record<string, Link[]>);
+      }, {});
 
       // Combinamos los datos
       const combinationsWithLinks = combinationsData.map(combination => ({

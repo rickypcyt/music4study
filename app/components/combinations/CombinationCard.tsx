@@ -10,7 +10,7 @@ interface CombinationCardProps {
   onClick: () => void;
 }
 
-export default function CombinationCard({ id, name, links, isExpanded, onClick }: CombinationCardProps) {
+export default function CombinationCard({ name, links, isExpanded, onClick }: CombinationCardProps) {
   return (
     <motion.div
       layout

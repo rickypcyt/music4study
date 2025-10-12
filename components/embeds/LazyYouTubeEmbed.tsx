@@ -2,7 +2,6 @@
 
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
 import { useEffect, useState } from 'react';
-
 import Image from 'next/image';
 
 interface LazyYouTubeEmbedProps {
@@ -32,10 +31,19 @@ export default function LazyYouTubeEmbed({
   const [loadError, setLoadError] = useState(false);
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
-  const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`;
+
+  const handleThumbnailError = () => {
+    console.warn(`No se pudo cargar la miniatura para el video ${videoId}`);
+    setThumbnailError(true);
+    // Intenta con una calidad de miniatura diferente como respaldo
+    if (thumbnailQuality !== 'default') {
+      setThumbnailUrl(`https://i.ytimg.com/vi/${videoId}/default.jpg`);
+    }
+  };
 
   useEffect(() => {
     const fetchVideoInfo = async () => {
@@ -140,35 +148,40 @@ export default function LazyYouTubeEmbed({
       {!isLoaded ? (
         <div 
           className="relative w-full h-full cursor-pointer group"
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault();
             recordLastPlayed();
             setIsLoaded(true);
+            // Forzar el enfoque en el iframe después de que se monte
+            setTimeout(() => {
+              const iframe = document.querySelector<HTMLIFrameElement>(`iframe[src*="${videoId}"]`);
+              if (iframe) {
+                iframe.focus();
+              }
+            }, 100);
           }}
         >
-          {/* Loading skeleton */}
-          {!isThumbnailLoaded && (
-            <div className="absolute inset-0 bg-gray-200 animate-pulse" />
+            {!isThumbnailLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 animate-pulse" />
           )}
 
-          {/* High quality thumbnail */}
-          <Image
-            src={thumbnailUrl}
-            alt={videoInfo?.title || initialTitle}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            onLoad={() => setIsThumbnailLoaded(true)}
-            onError={async () => {
-              setLoadError(true);
-              try {
-                await removeUnavailableVideo(linkId);
-              } catch {}
-              onUnavailable?.();
-            }}
-            priority={false}
-            loading="lazy"
-            quality={85}
-          />
+          {!thumbnailError ? (
+            <Image
+              src={thumbnailUrl}
+              alt={initialTitle || 'Miniatura del video'}
+              className={`w-full h-full object-cover ${isThumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
+              width={480}
+              height={360}
+              loading="lazy"
+              onLoadingComplete={() => setIsThumbnailLoaded(true)}
+              onError={handleThumbnailError}
+              unoptimized
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+              <span className="text-gray-400 text-sm">Miniatura no disponible</span>
+            </div>
+          )}
 
           {/* Video info overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">

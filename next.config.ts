@@ -126,8 +126,6 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // Habilitar SWC minification
-  swcMinify: true,
 };
 
 // Aplicar todas las configuraciones
