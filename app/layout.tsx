@@ -10,6 +10,7 @@ import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
+import { config } from '@/lib/config';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://music4study.com'),
+  metadataBase: new URL(config.siteUrl),
   alternates: {
     canonical: '/',
   },
@@ -56,7 +57,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Music4Study - Curated Music for Studying',
     description: 'Discover the perfect study music. Browse curated playlists, explore genres, and find the ideal soundtrack for your study sessions.',
-    url: 'https://music4study.com',
+    url: config.siteUrl,
     siteName: 'Music4Study',
     images: [
       {

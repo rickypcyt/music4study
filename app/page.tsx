@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Suspense, useCallback, useEffect, useRef, useState, memo } from 'react';
+import { Suspense, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import SubmitForm from './submit/SubmitForm';
 import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/hooks/use-toast';
 
 const ITEMS_PER_PAGE = 12;
@@ -133,6 +134,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { user, loading: authLoading, signInWithGoogle, signOut, isAuthenticated } = useAuth();
   const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>(() => {
     // Initialize view based on pathname
     if (pathname === '/') return 'home';
@@ -353,11 +355,55 @@ function HomeContent() {
     return () => { mounted = false; sub.subscription.unsubscribe(); };
   }, []);
 
+  // Actualizar el estado de autenticación cuando cambie el usuario
+  useEffect(() => {
+    setIsLoggedIn(isAuthenticated);
+    setUserId(user?.id || null);
+  }, [isAuthenticated, user]);
+
   const handleGoogleLogin = async () => {
     try {
-      const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;
-      await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-    } finally {
+      const { error } = await signInWithGoogle();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // El login se inició correctamente
+      console.log('Google login initiated successfully');
+      
+    } catch (error) {
+      console.error('Error during Google login:', error);
+      // Mostrar error al usuario
+      toast({
+        title: "Error de Login",
+        description: "Hubo un problema al iniciar sesión con Google. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await signOut();
+      if (error) throw error;
+      
+      setIsLoggedIn(false);
+      setUserId(null);
+      setUsername('');
+      
+      toast({
+        title: "Sesión cerrada",
+        description: "Has cerrado sesión correctamente.",
+      });
+      
+    } catch (error) {
+      console.error('Error during logout:', error);
+      toast({
+        title: "Error",
+        description: "Hubo un problema al cerrar sesión. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
     }
   };
   // removed unused usernameInput state
