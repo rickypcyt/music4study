@@ -553,14 +553,8 @@ function HomeContent() {
   };
 
   const handleSubmitClick = () => {
-    if (!isLoggedIn) {
-      setIsLoginModalOpen(true);
-      return;
-    }
-    if (!username) {
-      setIsUsernameModalOpen(true);
-      return;
-    }
+    // No se requiere inicio de sesión para enviar tracks
+    // Si el usuario no está autenticado, usará un nombre de usuario temporal
     setIsSubmitModalOpen(true);
   };
 
@@ -727,10 +721,15 @@ function HomeContent() {
             onClose={() => setIsSubmitModalOpen(false)} 
             genres={genres} 
             onNewLinkAdded={handleNewLinkAdded}
-            username={username}
+            username={username || 'Guest'}
             onEditUsername={() => {
-              setIsSubmitModalOpen(false);
-              setIsUsernameModalOpen(true);
+              if (!isLoggedIn) {
+                setIsSubmitModalOpen(false);
+                setIsLoginModalOpen(true);
+              } else {
+                setIsSubmitModalOpen(false);
+                setIsUsernameModalOpen(true);
+              }
             }}
           />
         </DialogContent>
@@ -744,11 +743,36 @@ function HomeContent() {
           onEscapeKeyDown={() => setIsLoginModalOpen(false)}
         >
           <DialogHeader>
-            <DialogTitle>Sign in to share your music</DialogTitle>
+            <div className="text-sm text-muted-foreground">
+              You can submit tracks as a guest, or sign in to use your personal username.
+            </div>
           </DialogHeader>
           <div className="space-y-4">
-            <Button onClick={handleGoogleLogin} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3">
-              Continue with Google
+            <Button 
+              onClick={handleGoogleLogin} 
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3"
+            >
+              Sign in with Google
+            </Button>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or continue as
+                </span>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsLoginModalOpen(false);
+                setIsSubmitModalOpen(true);
+              }}
+              className="w-full"
+            >
+              Guest
             </Button>
           </div>
         </DialogContent>

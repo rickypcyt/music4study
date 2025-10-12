@@ -117,7 +117,7 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
                         ...formData,
                         url: cleanUrl,
                         date_added: new Date().toISOString(),
-                        username: username,
+                        username: displayName.trim() || 'Anonymous',
                     },
                 ])
                 .select()
@@ -158,20 +158,79 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
         }
     };
 
+    // Cargar el nombre de usuario del localStorage si existe, de lo contrario usar el prop
+    const [displayName, setDisplayName] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('m4s_username') || (username === 'Guest' ? '' : username);
+        }
+        return username === 'Guest' ? '' : username;
+    });
+    
+    const [isEditingName, setIsEditingName] = useState(username === 'Guest');
+
+
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex items-center justify-between mb-2">
-                <div className="text-base text-foreground/90">
-                    Posting as <span className="font-medium text-foreground">{username}</span>
-                </div>
-                <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={onEditUsername}
-                    className="h-9 w-9 p-0 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                >
-                    <Pencil className="h-5 w-5" />
-                </Button>
+            <div className="space-y-2">
+                {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const name = displayName.trim();
+                                    if (name) {
+                                        if (typeof window !== 'undefined') {
+                                            localStorage.setItem('m4s_username', name);
+                                        }
+                                        setIsEditingName(false);
+                                    }
+                                }
+                            }}
+                            placeholder="Your name"
+                            className="flex-1"
+                            autoFocus
+                        />
+                        <Button 
+                            type="button" 
+                            size="sm"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                const name = displayName.trim();
+                                if (name) {
+                                    // Guardar en localStorage cuando se actualiza el nombre
+                                    if (typeof window !== 'undefined') {
+                                        localStorage.setItem('m4s_username', name);
+                                    }
+                                    setIsEditingName(false);
+                                }
+                            }}
+                        >
+                            Save
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between">
+                        <div className="text-base text-foreground/90">
+                            <span>Posting as <span className="font-medium text-foreground">{displayName || 'Anonymous'}</span></span>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsEditingName(true)}
+                            className="h-8 w-8 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                    {username === 'Guest' ? 'Sign in to save your username' : 'Click the pencil to change your name'}
+                </p>
             </div>
             <div className="space-y-6">
                 <div>
