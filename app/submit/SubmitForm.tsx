@@ -1,7 +1,6 @@
 'use client';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
@@ -9,28 +8,12 @@ import { useState } from 'react';
 import { useToast } from '@/components/hooks/use-toast';
 import { Pencil, Plus, Check, X } from 'lucide-react';
 
-type FieldError = string | null;
-
 // Type guard to safely check for an error code without using `any`
 const hasStringCode = (e: unknown): e is { code: string } => {
     if (typeof e !== 'object' || e === null) return false;
     const rec = e as Record<string, unknown>;
     return typeof rec.code === 'string';
 };
-
-interface FormErrors {
-    url: FieldError;
-    type: FieldError;
-    genre: FieldError;
-}
-
-interface SubmitFormProps {
-    onClose: () => void;
-    genres: { value: string; count: number; }[];
-    onNewLinkAdded?: (newLink: Link) => void;
-    username: string;
-    onEditUsername?: () => void;
-}
 
 interface Link {
     id: string;
@@ -42,7 +25,21 @@ interface Link {
     username: string;
 }
 
-function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername }: SubmitFormProps) {
+interface FormErrors {
+    url: string | null;
+    type: string | null;
+    genre: string | null;
+}
+
+interface SubmitFormProps {
+    onClose: () => void;
+    genres: { value: string; count: number }[];
+    onNewLinkAdded?: (newLink: Link) => void;
+    username: string;
+    onSuccess: () => void;
+}
+
+const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres, onNewLinkAdded, username, onSuccess }) => {
     const { toast } = useToast();
     const [formData, setFormData] = useState({
         url: '',
@@ -53,16 +50,31 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
     const [customTypeValue, setCustomTypeValue] = useState('');
     const [customGenreMode, setCustomGenreMode] = useState(false);
     const [customGenreValue, setCustomGenreValue] = useState('');
-    const [errors, setErrors] = useState<FormErrors>({ url: null, type: null, genre: null });
+    const [errors, setErrors] = useState<FormErrors>({ 
+        url: null, 
+        type: null, 
+        genre: null 
+    });
     const [loading, setLoading] = useState(false);
 
-    const isValidUrl = (url: string) => {
+    const isValidUrl = (url: string): boolean => {
         try {
             new URL(url);
             return true;
         } catch {
             return false;
         }
+    };
+
+    const handleGenreSelect = (genre: string): void => {
+        setFormData(prev => ({
+            ...prev,
+            genre
+        }));
+        setErrors(prev => ({
+            ...prev,
+            genre: null
+        }));
     };
 
     const validateForm = () => {
@@ -87,6 +99,48 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!validateForm()) return;
+
+        setLoading(true);
+        try {
+            const response = await fetch('/api/links', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: formData.url,
+                    type: formData.type,
+                    genre: formData.genre,
+                    username
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al enviar el enlace');
+            }
+
+            const newLink = await response.json();
+            onNewLinkAdded?.(newLink);
+            onSuccess();
+            onClose();
+            
+            toast({
+                title: '¡Éxito!',
+                description: 'El enlace se ha añadido correctamente.',
+            });
+        } catch (error) {
+            console.error('Error al enviar el enlace:', error);
+            toast({
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Error al enviar el enlace',
+                variant: 'destructive',
+            });
+        } finally {
+            setLoading(false);
+        }
         e.preventDefault();
         if (!validateForm()) return;
 
@@ -323,7 +377,7 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
                         <div className="flex items-center gap-2">
                             <Select
                                 value={formData.genre}
-                                onValueChange={(value) => handleChange('genre', value)}
+                                onValueChange={handleGenreSelect}
                             >
                                 <SelectTrigger className={`bg-background/70 border-border/40 text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0 ${errors.genre ? 'border-destructive' : ''} flex-1 min-w-0`}>
                                     <SelectValue placeholder="Select a genre" />
@@ -356,7 +410,7 @@ function SubmitForm({ onClose, genres, onNewLinkAdded, username, onEditUsername 
                                 className="flex-1 min-w-0 h-11 rounded-md bg-background/70 border border-border/40 px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
                             />
                             <datalist id="genres-list">
-                                {genres.map((g) => (
+                                {genres.map((g: { value: string; count: number }) => (
                                     <option key={g.value} value={g.value} />
                                 ))}
                             </datalist>

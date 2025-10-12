@@ -134,7 +134,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { toast } = useToast();
-  const { user, loading: authLoading, signInWithGoogle, signOut, isAuthenticated } = useAuth();
+  useAuth(); // Usamos el hook para sus efectos secundarios, pero no necesitamos sus valores
   const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>(() => {
     // Initialize view based on pathname
     if (pathname === '/') return 'home';
@@ -149,7 +149,6 @@ function HomeContent() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
@@ -326,54 +325,64 @@ function HomeContent() {
   // Auth: load user and username from profiles_m4s
   useEffect(() => {
     let mounted = true;
+    
     const initAuth = async () => {
       try {
-        const { data } = await supabase.auth.getUser();
-        const user = data?.user ?? null;
+        const { data, error: authError } = await supabase.auth.getUser();
         if (!mounted) return;
-        setIsLoggedIn(!!user);
+        
+        if (authError) throw authError;
+        
+        const user = data?.user ?? null;
         setUserId(user?.id ?? null);
+        
         if (user?.id) {
-          const { data: prof } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles_m4s')
             .select('username')
             .eq('id', user.id)
             .single();
-          const nameFromDb = prof?.username || localStorage.getItem('m4s_username') || '';
+            
+          if (profileError && profileError.code !== 'PGRST116') { // Ignorar error cuando no hay resultados
+            console.error('Error fetching profile:', profileError);
+          }
+          
+          const nameFromDb = profile?.username || localStorage.getItem('m4s_username') || '';
           setUsername(nameFromDb);
         } else {
           setUsername('');
         }
-      } finally {
+      } catch (err) {
+        console.error('Error in auth:', err);
+        setUsername('');
+        setUserId(null);
       }
     };
+    
     initAuth();
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user);
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setUserId(session?.user?.id ?? null);
     });
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
+    
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
-
-  // Actualizar el estado de autenticación cuando cambie el usuario
-  useEffect(() => {
-    setIsLoggedIn(isAuthenticated);
-    setUserId(user?.id || null);
-  }, [isAuthenticated, user]);
 
   const handleGoogleLogin = async () => {
     try {
-      const { error } = await signInWithGoogle();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
       
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
-      // El login se inició correctamente
       console.log('Google login initiated successfully');
-      
-    } catch (error) {
-      console.error('Error during Google login:', error);
+    } catch (err) {
+      console.error('Error during Google login:', err);
       // Mostrar error al usuario
       toast({
         title: "Error de Login",
@@ -383,30 +392,7 @@ function HomeContent() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await signOut();
-      if (error) throw error;
-      
-      setIsLoggedIn(false);
-      setUserId(null);
-      setUsername('');
-      
-      toast({
-        title: "Sesión cerrada",
-        description: "Has cerrado sesión correctamente.",
-      });
-      
-    } catch (error) {
-      console.error('Error during logout:', error);
-      toast({
-        title: "Error",
-        description: "Hubo un problema al cerrar sesión. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
-    }
-  };
-  // removed unused usernameInput state
+  // Función de cierre de sesión eliminada ya que no se está utilizar
 
   // Función para guardar en caché
   const saveToCache = (links: Link[]) => {
@@ -722,14 +708,12 @@ function HomeContent() {
             genres={genres} 
             onNewLinkAdded={handleNewLinkAdded}
             username={username || 'Guest'}
-            onEditUsername={() => {
-              if (!isLoggedIn) {
-                setIsSubmitModalOpen(false);
-                setIsLoginModalOpen(true);
-              } else {
-                setIsSubmitModalOpen(false);
-                setIsUsernameModalOpen(true);
-              }
+            onSuccess={() => {
+              setIsSubmitModalOpen(false);
+              toast({
+                title: "¡Éxito!",
+                description: "Tu enlace ha sido enviado correctamente.",
+              });
             }}
           />
         </DialogContent>
