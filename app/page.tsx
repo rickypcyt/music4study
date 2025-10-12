@@ -147,7 +147,6 @@ function HomeContent() {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
@@ -199,14 +198,24 @@ function HomeContent() {
     fetchGenres();
   }, [fetchGenres]);
 
+  // Función para normalizar cadenas de género
+  const normalizeGenre = (genre: string) => {
+    return genre.trim().toLowerCase().replace(/\s+/g, ' ');
+  };
+
   // Función para actualizar los enlaces mostrados
   const updateDisplayedLinks = useCallback((allLinks: Link[]) => {
     let filteredLinks = [...allLinks];
 
     // Filtrar por género si hay uno seleccionado
     if (selectedGenre) {
-      const selected = selectedGenre.trim().toLowerCase();
-      filteredLinks = filteredLinks.filter(link => link.genre.trim().toLowerCase() === selected);
+      const selected = normalizeGenre(selectedGenre);
+      filteredLinks = filteredLinks.filter(link => 
+        normalizeGenre(link.genre) === selected
+      );
+      
+      console.log('Filtrando por género:', selected);
+      console.log('Enlaces filtrados:', filteredLinks);
     }
 
     // Ordenar los enlaces
@@ -285,13 +294,16 @@ function HomeContent() {
     }
   }, [selectedGenre, currentSort, updateDisplayedLinks]);
 
-  const handleGenreClick = (genre: string) => {
-    setCurrentView('home');
+  const handleGenreClick = useCallback((genre: string) => {
+    // No actualizamos currentView para evitar el parpadeo
+    // El filtrado se manejará con el parámetro de búsqueda
     const params = new URLSearchParams(searchParams.toString());
     params.set('genre', genre);
     params.delete('view');
+    
+    // Usamos replace con scroll: false para una transición más suave
     router.replace(`/?${params.toString()}`, { scroll: false });
-  };
+  }, [router, searchParams]);
 
   const handleHomeClick = () => {
     setCurrentView('home');
@@ -320,55 +332,7 @@ function HomeContent() {
     router.push(`/?${newParams.toString()}`, { scroll: false });
   };
 
-  // Auth: load user and username from profiles_m4s
-  useEffect(() => {
-    let mounted = true;
-    
-    const initAuth = async () => {
-      try {
-        const { data, error: authError } = await supabase.auth.getUser();
-        if (!mounted) return;
-        
-        if (authError) throw authError;
-        
-        const user = data?.user ?? null;
-        setUserId(user?.id ?? null);
-        
-        if (user?.id) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles_m4s')
-            .select('username')
-            .eq('id', user.id)
-            .single();
-            
-          if (profileError && profileError.code !== 'PGRST116') { // Ignorar error cuando no hay resultados
-            console.error('Error fetching profile:', profileError);
-          }
-          
-          const nameFromDb = profile?.username || localStorage.getItem('m4s_username') || '';
-          setUsername(nameFromDb);
-        } else {
-          setUsername('');
-        }
-      } catch (err) {
-        console.error('Error in auth:', err);
-        setUsername('');
-        setUserId(null);
-      }
-    };
-    
-    initAuth();
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setUserId(session?.user?.id ?? null);
-    });
-    
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, []);
+
 
   const handleGoogleLogin = async () => {
     try {
@@ -436,39 +400,59 @@ function HomeContent() {
 
   const fetchCombinations = useCallback(async () => {
     try {
+      setLoading(true);
+      
+      // Primero obtenemos todas las combinaciones
       const { data: combinationsData, error: combinationsError } = await supabase
         .from('combinations')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (combinationsError) throw combinationsError;
+      if (!combinationsData.length) {
+        setCombinations([]);
+        return;
+      }
 
-      const combinationsWithLinks = await Promise.all(
-        combinationsData.map(async (combination) => {
-          const { data: linksData, error: linksError } = await supabase
-            .from('combination_links')
-            .select(`
-              link:links(*)
-            `)
-            .eq('combination_id', combination.id);
+      // Obtenemos todos los IDs de las combinaciones
+      const combinationIds = combinationsData.map(c => c.id);
 
-          if (linksError) throw linksError;
+      // Obtenemos todos los enlaces de las combinaciones en una sola consulta
+      const { data: linksData, error: linksError } = await supabase
+        .from('combination_links')
+        .select(`
+          combination_id,
+          link:links(*)
+        `)
+        .in('combination_id', combinationIds);
 
-          return {
-            ...combination,
-            links: linksData.map(item => item.link)
-          };
-        })
-      );
+      if (linksError) throw linksError;
+
+      // Creamos un mapa para agrupar los enlaces por combination_id
+      const linksByCombination = linksData.reduce((acc, { combination_id, link }) => {
+        if (!acc[combination_id]) {
+          acc[combination_id] = [];
+        }
+        acc[combination_id].push(link);
+        return acc;
+      }, {} as Record<string, Link[]>);
+
+      // Combinamos los datos
+      const combinationsWithLinks = combinationsData.map(combination => ({
+        ...combination,
+        links: linksByCombination[combination.id] || []
+      }));
 
       setCombinations(combinationsWithLinks);
     } catch (error) {
       console.error('Error fetching combinations:', error);
       toast({
         title: "Error",
-        description: "Failed to load combinations. Please try again.",
+        description: "No se pudieron cargar las combinaciones. Por favor, inténtalo de nuevo.",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   }, [toast]);
 
@@ -760,12 +744,7 @@ function HomeContent() {
         </DialogContent>
       </Dialog>
 
-      <UsernameModal
-        open={isUsernameModalOpen}
-        onOpenChange={setIsUsernameModalOpen}
-        userId={userId || ''}
-        onSaved={(name) => setUsername(name)}
-      />
+
 
       <Dialog open={isCreateCombinationModalOpen} onOpenChange={setIsCreateCombinationModalOpen}>
         <DialogContent
