@@ -1,5 +1,18 @@
 import type { NextConfig } from "next";
 
+// Configuración del Bundle Analyzer
+const withBundleAnalyzer = (config: NextConfig) => {
+  try {
+    const withBundleAnalyzerPkg = require('@next/bundle-analyzer')({
+      enabled: process.env.ANALYZE === 'true',
+    });
+    return withBundleAnalyzerPkg(config);
+  } catch (e) {
+    console.warn('@next/bundle-analyzer no está instalado. Ejecuta: pnpm add -D @next/bundle-analyzer');
+    return config;
+  }
+};
+
 const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
@@ -64,16 +77,58 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
-    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react'],
+    optimizePackageImports: [
+      '@radix-ui/react-icons',
+      'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      'framer-motion',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-toast'
+    ],
+    turbo: {
+      rules: {
+        '*.{ts,tsx}': [
+          {
+            loader: 'tsx',
+            options: {
+              fastRefresh: true,
+            },
+          },
+        ],
+      },
+    },
   },
-  webpack: (config, { dev, isServer }) => {
+  webpack: (config, { dev }) => {
     // Enable tree shaking and dead code elimination
-    config.optimization = {
-      ...config.optimization,
-      minimize: !dev,
-    };
+    if (!dev) {
+      config.optimization = {
+        ...config.optimization,
+        minimize: true,
+        splitChunks: {
+          chunks: 'all',
+          maxInitialRequests: 25,
+          cacheGroups: {
+            vendor: {
+              test: /[\\/]node_modules[\\/]/,
+              name(module: { context?: string }) {
+                const packageName = module.context?.match(
+                  /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+                )?.[1];
+                return `npm.${packageName?.replace('@', '')}`;
+              },
+            },
+          },
+        },
+      };
+    }
     return config;
   },
+  // Habilitar SWC minification
+  swcMinify: true,
 };
 
-export default nextConfig;
+// Aplicar todas las configuraciones
+export default withBundleAnalyzer(nextConfig);

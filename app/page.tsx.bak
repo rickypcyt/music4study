@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Suspense, memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -134,7 +134,6 @@ function HomeContent() {
   const pathname = usePathname();
   const { toast } = useToast();
   const [currentView, setCurrentView] = useState<'home' | 'genres' | 'combinations'>(() => {
-    // Initialize view based on pathname
     if (pathname === '/') return 'home';
     if (pathname === '/genres') return 'genres';
     if (pathname === '/combinations') return 'combinations';
@@ -145,25 +144,6 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [isUsernameModalOpen, setIsUsernameModalOpen] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [username, setUsername] = useState<string>('');
-  const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
-  const [newCombinationName, setNewCombinationName] = useState('');
-  const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
-  const [currentSort, setCurrentSort] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('sort') || searchParams.get('sort') || 'date';
-    }
-    return searchParams.get('sort') || 'date';
-  });
-  const [currentTheme, setCurrentTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') || 'coffee';
-    }
-    return 'coffee';
-  });
   const allLinksRef = useRef<Link[]>([]);
   const isInitialLoadRef = useRef(true);
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
@@ -320,77 +300,7 @@ function HomeContent() {
     router.push(`/?${newParams.toString()}`, { scroll: false });
   };
 
-  // Auth: load user and username from profiles_m4s
-  useEffect(() => {
-    let mounted = true;
-    
-    const initAuth = async () => {
-      try {
-        const { data, error: authError } = await supabase.auth.getUser();
-        if (!mounted) return;
-        
-        if (authError) throw authError;
-        
-        const user = data?.user ?? null;
-        setUserId(user?.id ?? null);
-        
-        if (user?.id) {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles_m4s')
-            .select('username')
-            .eq('id', user.id)
-            .single();
-            
-          if (profileError && profileError.code !== 'PGRST116') { // Ignorar error cuando no hay resultados
-            console.error('Error fetching profile:', profileError);
-          }
-          
-          const nameFromDb = profile?.username || localStorage.getItem('m4s_username') || '';
-          setUsername(nameFromDb);
-        } else {
-          setUsername('');
-        }
-      } catch (err) {
-        console.error('Error in auth:', err);
-        setUsername('');
-        setUserId(null);
-      }
-    };
-    
-    initAuth();
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      setUserId(session?.user?.id ?? null);
-    });
-    
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  const handleGoogleLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
-      
-      if (error) throw error;
-      
-      console.log('Google login initiated successfully');
-    } catch (err) {
-      console.error('Error during Google login:', err);
-      // Mostrar error al usuario
-      toast({
-        title: "Error de Login",
-        description: "Hubo un problema al iniciar sesión con Google. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Función de cierre de sesión eliminada ya que no se está utilizar
+  // Código de autenticación eliminado ya que ya no se utiliza
 
   // Función para guardar en caché
   const saveToCache = (links: Link[]) => {
@@ -692,80 +602,18 @@ function HomeContent() {
         </div>
       </main>
 
-      <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent
-          className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]"
-          onInteractOutside={() => setIsSubmitModalOpen(false)}
-          onEscapeKeyDown={() => setIsSubmitModalOpen(false)}
-        >
+      <Dialog open={isSubmitModalOpen} onOpenChange={handleCloseSubmitModal}>
+        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]">
           <DialogHeader>
             <DialogTitle>Submit Track</DialogTitle>
           </DialogHeader>
           <SubmitForm 
-            onClose={() => setIsSubmitModalOpen(false)} 
-            genres={genres} 
-            onNewLinkAdded={handleNewLinkAdded}
-            username={username || 'Guest'}
-            onSuccess={() => {
-              setIsSubmitModalOpen(false);
-              toast({
-                title: "¡Éxito!",
-                description: "Tu enlace ha sido enviado correctamente.",
-              });
-            }}
+            onClose={handleCloseSubmitModal}
+            genres={[]}
+            onSuccess={handleCloseSubmitModal}
           />
         </DialogContent>
       </Dialog>
-
-      {/* Login Modal */}
-      <Dialog open={isLoginModalOpen} onOpenChange={setIsLoginModalOpen}>
-        <DialogContent
-          className="bg-[#1a1814] border-[#e6e2d9]/10"
-          onInteractOutside={() => setIsLoginModalOpen(false)}
-          onEscapeKeyDown={() => setIsLoginModalOpen(false)}
-        >
-          <DialogHeader>
-            <div className="text-sm text-muted-foreground">
-              You can submit tracks as a guest, or sign in to use your personal username.
-            </div>
-          </DialogHeader>
-          <div className="space-y-4">
-            <Button 
-              onClick={handleGoogleLogin} 
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3"
-            >
-              Sign in with Google
-            </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue as
-                </span>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsLoginModalOpen(false);
-                setIsSubmitModalOpen(true);
-              }}
-              className="w-full"
-            >
-              Guest
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <UsernameModal
-        open={isUsernameModalOpen}
-        onOpenChange={setIsUsernameModalOpen}
-        userId={userId || ''}
-        onSaved={(name) => setUsername(name)}
-      />
 
       <Dialog open={isCreateCombinationModalOpen} onOpenChange={setIsCreateCombinationModalOpen}>
         <DialogContent
