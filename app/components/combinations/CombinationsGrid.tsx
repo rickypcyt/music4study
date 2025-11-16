@@ -29,10 +29,12 @@ export default function CombinationsGrid({ combinations }: CombinationsGridProps
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] p-6">
+    <div className="min-h-[calc(100vh-4rem)] p-6 w-full max-w-7xl mx-auto">
       <h1 className="text-3xl font-bold mb-8 text-center">Tus Combinaciones</h1>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+      <div 
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 w-full combinations-grid"
+      >
         <AnimatePresence>
           {combinations.map((item) => (
             <CombinationCard

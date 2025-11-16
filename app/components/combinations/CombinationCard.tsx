@@ -15,7 +15,7 @@ export default function CombinationCard({ name, links, isExpanded, onClick }: Co
     <motion.div
       layout
       initial={{ borderRadius: 10 }}
-      className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer ${
+      className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden cursor-pointer w-full ${
         isExpanded ? 'fixed inset-0 m-4 z-50' : 'h-48'
       }`}
       onClick={onClick}

@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DialogDescription } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -337,36 +338,42 @@ function HomeContent() {
         return;
       }
 
-      // Obtenemos todos los IDs de las combinaciones
-      const combinationIds = combinationsData.map(c => c.id);
+      // Inicializamos un array vacío para los enlaces de combinaciones
+      let linksData: Array<{ combination_id: string; link: Link | Link[] }> = [];
+      
+      // Solo hacemos la consulta si hay combinaciones
+      if (combinationsData.length > 0) {
+        const combinationIds = combinationsData.map(c => c.id);
+        
+        // Obtenemos los enlaces de las combinaciones
+        const { data: fetchedLinks, error: linksError } = await supabase
+          .from('combination_links')
+          .select(`
+            combination_id,
+            link:link_id (
+              *
+            )`)
+          .in('combination_id', combinationIds);
+          
+        console.log('Fetched links raw data:', fetchedLinks);
 
-      // Obtenemos los enlaces de las combinaciones
-      const { data: linksData, error: linksError } = await supabase
-        .from('combination_links')
-        .select(`
-          combination_id,
-          links:link_id (
-            id,
-            title,
-            url,
-            genre,
-            date_added,
-            type,
-            username
-          )`)
-        .in('combination_id', combinationIds);
-
-      if (linksError) throw linksError;
+        if (linksError) {
+          console.error('Error fetching combination links:', linksError);
+          // Continuamos con el array vacío en caso de error
+        } else if (fetchedLinks) {
+          linksData = fetchedLinks;
+        }
+      }
 
       // Creamos un mapa para agrupar los enlaces por combination_id
-      const linksByCombination = linksData.reduce<Record<string, Link[]>>((acc, { combination_id, links }) => {
+      const linksByCombination = linksData.reduce<Record<string, Link[]>>((acc, { combination_id, link }) => {
         if (!acc[combination_id]) {
           acc[combination_id] = [];
         }
-        if (links) {
-          // Aseguramos que links sea un array antes de usar el spread operator
-          const linksArray = Array.isArray(links) ? links : [links];
-          acc[combination_id].push(...linksArray);
+        if (link) {
+          // Aseguramos que link sea un array antes de usar el spread operator
+          const linkArray = Array.isArray(link) ? link : [link];
+          acc[combination_id].push(...linkArray);
         }
         return acc;
       }, {});
@@ -593,7 +600,7 @@ function HomeContent() {
                 <LoadingCards />
               </div>
             ) : links.length > 0 ? (
-              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-6">
+              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {links.map(link => (
                   <div key={link.id}>
                     <LinkCard link={link} onRemoved={handleLinkRemoved} />
@@ -615,7 +622,11 @@ function HomeContent() {
           className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]"
           onInteractOutside={() => setIsSubmitModalOpen(false)}
           onEscapeKeyDown={() => setIsSubmitModalOpen(false)}
+          aria-describedby="submit-dialog-description"
         >
+          <DialogDescription id="submit-dialog-description" className="sr-only">
+            Formulario para enviar un nuevo enlace de música
+          </DialogDescription>
           <DialogHeader>
             <DialogTitle>Submit Track</DialogTitle>
           </DialogHeader>
