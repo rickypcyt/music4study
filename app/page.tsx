@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DialogDescription } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import GenreCloud from '@/components/ui/GenreCloud';
@@ -13,9 +14,11 @@ import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import SubmitForm from './submit/SubmitForm';
 import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
+import ViewTransition from '@/components/ui/ViewTransition';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
+import { fetchAndStoreTitles, fetchAndStoreTitle } from '@/lib/fetchAndStoreTitles';
 
 const ITEMS_PER_PAGE = 12;
 
@@ -197,6 +200,25 @@ function HomeContent() {
         if (allLinksData) {
           allLinksRef.current = allLinksData;
           updateDisplayedLinks(allLinksData);
+          
+          // Automatically fetch and store titles for YouTube videos
+          // Run in background without blocking UI
+          fetchAndStoreTitles(allLinksData).then(() => {
+            // Refresh links from database to get updated titles
+            supabase
+              .from('links')
+              .select('*')
+              .order('date_added', { ascending: false })
+              .then(({ data, error }) => {
+                if (!error && data) {
+                  allLinksRef.current = data;
+                  saveToCache(data);
+                  updateDisplayedLinks(data);
+                }
+              });
+          }).catch(err => {
+            console.error('Error fetching titles:', err);
+          });
         }
 
         isInitialLoadRef.current = false;
@@ -468,8 +490,15 @@ function HomeContent() {
   };
 
   // Añadir función para actualizar el caché después de añadir un nuevo link
-  const handleNewLinkAdded = (newLink: Link) => {
+  const handleNewLinkAdded = async (newLink: Link) => {
     const currentLinks = allLinksRef.current;
+    
+    // Fetch title for new link if it's a YouTube video
+    const updatedTitle = await fetchAndStoreTitle(newLink);
+    if (updatedTitle) {
+      newLink.title = updatedTitle;
+    }
+    
     const updatedLinks = [newLink, ...currentLinks];
     allLinksRef.current = updatedLinks;
     saveToCache(updatedLinks);
@@ -530,91 +559,100 @@ function HomeContent() {
       />
       
       <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6">
-        <div className="w-full">
-        {currentView === 'genres' ? (
-          <>
-            <div className="text-center mb-8">
-              <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
-              <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
-                Explore music by genre. Each genre has its own unique characteristics and mood.
-              </p>
-            </div>
-            <GenreCloud 
-              tags={genres} 
-              onGenreClick={handleGenreClick}
-            />
-          </>
-        ) : currentView === 'combinations' ? (
-          <>
-            <div className="space-y-8">
-              <div className="text-center">
-                <h2 className="text-5xl font-serif text-foreground mb-2">Combinations</h2>
-                <p className="text-foreground/70 text-lg">
-                  Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
+        <ViewTransition viewKey={currentView}>
+          {currentView === 'genres' ? (
+            <>
+              <div className="text-center mb-8">
+                <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
+                <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
+                  Explore music by genre. Each genre has its own unique characteristics and mood.
                 </p>
               </div>
-              <div className="flex justify-center">
-                <Button
-                  onClick={() => setIsCreateCombinationModalOpen(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 py-6"
-                >
-                  Create Combination
-                </Button>
+              <GenreCloud 
+                tags={genres} 
+                onGenreClick={handleGenreClick}
+              />
+            </>
+          ) : currentView === 'combinations' ? (
+            <>
+              <div className="space-y-8">
+                <div className="text-center">
+                  <h2 className="text-5xl font-serif text-foreground mb-2">Combinations</h2>
+                  <p className="text-foreground/70 text-lg">
+                    Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
+                  </p>
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    onClick={() => setIsCreateCombinationModalOpen(true)}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 py-6"
+                  >
+                    Create Combination
+                  </Button>
+                </div>
+                <div className="grid gap-8">
+                  {combinations.map((combination) => (
+                    <div key={combination.id} className="space-y-6 p-6 border border-foreground/10 rounded-lg">
+                      <h2 className="text-2xl font-serif text-foreground">
+                        {combination.name}
+                      </h2>
+                      {combination.links.length > 0 ? (
+                        <VirtualizedGrid
+                          items={combination.links}
+                          renderItem={(link) => <LinkCard key={link.id} link={link} />}
+                          columns={4}
+                          className="min-h-[200px]"
+                        />
+                      ) : (
+                        <p className="text-foreground/70">No tracks in this combination yet.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid gap-8">
-                {combinations.map((combination) => (
-                  <div key={combination.id} className="space-y-6 p-6 border border-foreground/10 rounded-lg">
-                    <h2 className="text-2xl font-serif text-foreground">
-                      {combination.name}
-                    </h2>
-                    {combination.links.length > 0 ? (
-                      <VirtualizedGrid
-                        items={combination.links}
-                        renderItem={(link) => <LinkCard key={link.id} link={link} />}
-                        columns={4}
-                        className="min-h-[200px]"
-                      />
-                    ) : (
-                      <p className="text-foreground/70">No tracks in this combination yet.</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {selectedGenre && (
-              <div className="text-center mb-1">
-                <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide pt-6">
-                  {selectedGenre} Music
-                </h1>
-                <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
-                  Explore our collection of {selectedGenre.toLowerCase()} music for studying.
-                </p>
-              </div>
-            )}
+            </>
+          ) : (
+            <>
+              {selectedGenre && (
+                <div className="text-center mb-1">
+                  <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide pt-6">
+                    {selectedGenre} Music
+                  </h1>
+                  <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
+                    Explore our collection of {selectedGenre.toLowerCase()} music for studying.
+                  </p>
+                </div>
+              )}
 
-            {loading ? (
-              <div className="min-h-[60vh] flex items-center justify-center">
-                <LoadingCards />
-              </div>
-            ) : links.length > 0 ? (
-              <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {links.map(link => (
-                  <div key={link.id}>
-                    <LinkCard link={link} onRemoved={handleLinkRemoved} />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center text-foreground/70 py-12">
-                No tracks found. Be the first to add one!
-              </div>
-            )}
-          </>
-        )}
-        </div>
+              {loading ? (
+                <div className="min-h-[60vh] flex items-center justify-center">
+                  <LoadingCards />
+                </div>
+              ) : links.length > 0 ? (
+                <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {links.map((link, index) => (
+                    <motion.div
+                      key={link.id}
+                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{
+                        duration: 0.4,
+                        delay: index * 0.03,
+                        ease: [0.25, 0.46, 0.45, 0.94]
+                      }}
+                    >
+                      <LinkCard link={link} onRemoved={handleLinkRemoved} />
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-foreground/70 py-12">
+                  No tracks found. Be the first to add one!
+                </div>
+              )}
+            </>
+          )}
+        </ViewTransition>
       </main>
 
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>

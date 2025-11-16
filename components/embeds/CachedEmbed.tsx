@@ -12,18 +12,22 @@ interface CachedEmbedProps {
   url: string;
   linkId: string;
   className?: string;
+  initialTitle?: string; // Title from the link data to show immediately
   onLoad?: () => void;
   onError?: () => void;
   onUnavailable?: () => void;
+  onTitleFetched?: (title: string, channelTitle?: string) => void;
 }
 
 export default function CachedEmbed({ 
   url, 
   linkId,
   className = '', 
+  initialTitle,
   onLoad, 
   onError,
   onUnavailable,
+  onTitleFetched,
 }: CachedEmbedProps) {
   const [embedData, setEmbedData] = useState<{ html: string; error?: boolean; thumbnailUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,10 +186,11 @@ export default function CachedEmbed({
       return (
         <LazyYouTubeEmbed
           videoId={videoId}
-          title={url}
+          title={initialTitle || url}
           linkId={linkId}
           className={className}
           onUnavailable={onUnavailable}
+          onTitleFetched={onTitleFetched}
         />
       );
     }

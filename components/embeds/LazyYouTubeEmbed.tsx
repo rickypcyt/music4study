@@ -1,6 +1,7 @@
 'use client';
 
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
+import { youtubeCache } from '@/lib/youtubeCache';
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 
@@ -11,6 +12,7 @@ interface LazyYouTubeEmbedProps {
   className?: string;
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
   onUnavailable?: () => void;
+  onTitleFetched?: (title: string, channelTitle?: string) => void;
 }
 
 interface VideoInfo {
@@ -24,13 +26,35 @@ export default function LazyYouTubeEmbed({
   linkId,
   className = '',
   thumbnailQuality = 'hqdefault',
-  onUnavailable
+  onUnavailable,
+  onTitleFetched
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  
+  // Use videoInfo title if available, otherwise use initialTitle (from link data)
+  // Filter out URLs - if initialTitle is a URL, don't use it as display title
+  const isValidTitle = (title: string | undefined): boolean => {
+    if (!title || !title.trim()) return false;
+    // Don't use URL as title
+    if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
+      return false;
+    }
+    return true;
+  };
+  
+  const displayTitle = videoInfo?.title || (isValidTitle(initialTitle) ? initialTitle : '');
+  const displayChannel = videoInfo?.channelTitle || '';
+  
+  // Debug in development
+  if (process.env.NODE_ENV === 'development') {
+    if (!displayTitle) {
+      console.log('LazyYouTubeEmbed: No title available', { videoId, initialTitle, videoInfo, displayTitle });
+    }
+  }
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -46,19 +70,98 @@ export default function LazyYouTubeEmbed({
   };
 
   useEffect(() => {
+    // Fetch video info immediately on mount (don't wait for availability check)
     const fetchVideoInfo = async () => {
-      try {
-        const response = await fetch(`/api/youtube-info?videoId=${videoId}`);
-        if (!response.ok) throw new Error('Failed to fetch video info');
-        const data = await response.json();
-        setVideoInfo(data);
-      } catch (err) {
-        console.error('Error fetching video info:', err instanceof Error ? err.message : 'Unknown error');
-        // Fallback to initial title if fetch fails
-        setVideoInfo({ title: initialTitle, channelTitle: '' });
+      // Check cache first
+      const cached = youtubeCache.get(videoId);
+      if (cached) {
+        setVideoInfo({
+          title: cached.title,
+          channelTitle: cached.channelTitle || ''
+        });
+        if (onTitleFetched) {
+          onTitleFetched(cached.title, cached.channelTitle);
+        }
+        return;
+      }
+
+      // Check if there's already a pending request for this video (deduplication)
+      const pendingRequest = youtubeCache.getPendingRequest(videoId);
+      if (pendingRequest) {
+        try {
+          const cached = await pendingRequest;
+          if (cached) {
+            setVideoInfo({
+              title: cached.title,
+              channelTitle: cached.channelTitle || ''
+            });
+            if (onTitleFetched) {
+              onTitleFetched(cached.title, cached.channelTitle);
+            }
+          }
+        } catch {
+          // If pending request fails, continue to make new request
+        }
+        return;
+      }
+
+      // Create new fetch request
+      const fetchPromise = (async () => {
+        try {
+          const response = await fetch(`/api/youtube-info?videoId=${videoId}`);
+          if (!response.ok) {
+            // Silently fail if API is not configured or unavailable
+            if (response.status === 500) {
+              return null;
+            }
+            // For other errors, log in development only
+            if (process.env.NODE_ENV === 'development') {
+              const errorData = await response.json().catch(() => null);
+              if (errorData?.error) {
+                console.warn('YouTube API:', errorData.error);
+              }
+            }
+            return null;
+          }
+          const data = await response.json();
+          if (data.title) {
+            // Cache the result
+            youtubeCache.set(videoId, data.title, data.channelTitle || '');
+            return {
+              title: data.title,
+              channelTitle: data.channelTitle || '',
+              cachedAt: Date.now()
+            };
+          }
+          return null;
+        } catch (err) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Error fetching video info:', err instanceof Error ? err.message : 'Unknown error');
+          }
+          return null;
+        }
+      })();
+
+      // Register pending request for deduplication
+      youtubeCache.setPendingRequest(videoId, fetchPromise);
+
+      // Wait for result and update state
+      const result = await fetchPromise;
+      if (result) {
+        setVideoInfo({
+          title: result.title,
+          channelTitle: result.channelTitle || ''
+        });
+        if (onTitleFetched) {
+          onTitleFetched(result.title, result.channelTitle);
+        }
       }
     };
 
+    // Start fetching video info immediately
+    fetchVideoInfo();
+
+    // Check availability in parallel
     const checkAvailability = async () => {
       try {
         const { isAvailable } = await checkVideoAvailability(videoId);
@@ -67,9 +170,6 @@ export default function LazyYouTubeEmbed({
           setLoadError(true);
           await removeUnavailableVideo(linkId);
           onUnavailable?.();
-        } else {
-          // Only fetch video info if the video is available
-          fetchVideoInfo();
         }
       } catch (err) {
         console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
@@ -78,7 +178,7 @@ export default function LazyYouTubeEmbed({
     };
 
     checkAvailability();
-  }, [videoId, linkId, initialTitle, onUnavailable]);
+  }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
   const handleIframeError = () => {
     setIsBlocked(true);
@@ -144,7 +244,8 @@ export default function LazyYouTubeEmbed({
   }
 
   return (
-    <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
+    <div className={`w-full ${className}`}>
+      <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
       {!isLoaded ? (
         <div 
           className="relative w-full h-full cursor-pointer group"
@@ -168,7 +269,7 @@ export default function LazyYouTubeEmbed({
           {!thumbnailError ? (
             <Image
               src={thumbnailUrl}
-              alt={initialTitle || 'Miniatura del video'}
+              alt={videoInfo?.title || initialTitle || 'Miniatura del video'}
               className={`w-full h-full object-cover ${isThumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
               width={480}
               height={360}
@@ -182,20 +283,6 @@ export default function LazyYouTubeEmbed({
               <span className="text-gray-400 text-sm">Miniatura no disponible</span>
             </div>
           )}
-
-          {/* Video info overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <h3 className="text-white text-lg font-semibold line-clamp-2">
-                {videoInfo?.title || initialTitle}
-              </h3>
-              {videoInfo?.channelTitle && (
-                <p className="text-white/80 text-sm mt-1">
-                  {videoInfo.channelTitle}
-                </p>
-              )}
-            </div>
-          </div>
 
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
@@ -220,6 +307,7 @@ export default function LazyYouTubeEmbed({
           loading="lazy"
         />
       )}
+      </div>
     </div>
   );
 }

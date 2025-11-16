@@ -52,7 +52,8 @@ export default function Navbar({
     }
     router.replace(view === 'home' ? '/' : `/?${params.toString()}`, { scroll: false });
     callback();
-    setTimeout(() => setIsNavigating(false), 300);
+    // Shorter timeout for more responsive feel
+    setTimeout(() => setIsNavigating(false), 150);
   }, [router]);
 
   // Close mobile menu when clicking outside
@@ -89,11 +90,11 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'home'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
+        } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Home className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Home</span>
@@ -107,11 +108,11 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'genres'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
+        } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Tags className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Genres</span>
@@ -125,11 +126,11 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 border-b-2 text-base md:text-lg font-medium transition-colors duration-200 ${
+        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'combinations'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        } ${isNavigating ? 'pointer-events-none opacity-50' : ''}`}
+        } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Layers className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Combinations</span>

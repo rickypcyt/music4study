@@ -21,20 +21,41 @@ export async function GET(request: Request) {
     );
 
     if (!response.ok) {
-      throw new Error(`YouTube API error: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      const errorMessage = errorData?.error?.message || response.statusText;
+      console.error(`YouTube API error (${response.status}):`, errorMessage);
+      return NextResponse.json(
+        { error: errorMessage, status: response.status },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
 
     if (!data.items?.[0]?.snippet) {
-      return new NextResponse('Video not found', { status: 404 });
+      return NextResponse.json(
+        { error: 'Video not found' },
+        { status: 404 }
+      );
     }
 
     const { title, channelTitle } = data.items[0].snippet;
 
-    return NextResponse.json({ title, channelTitle });
+    // Return with cache headers for better performance
+    return NextResponse.json(
+      { title, channelTitle },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching YouTube video info:', error);
-    return new NextResponse('Failed to fetch video info', { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
+    );
   }
 } 

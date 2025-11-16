@@ -9,6 +9,8 @@ import CachedEmbed from './embeds/CachedEmbed';
 import { Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
+import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
+import { extractYouTubeId } from "@/components/embeds/LazyYouTubeEmbed";
 
 interface Link {
   id: string;
@@ -49,6 +51,7 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
   const [combinations, setCombinations] = useState<Combination[]>([]);
   const [selectedCombination, setSelectedCombination] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -76,6 +79,26 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
       fetchCombinations();
     }
   }, [isAddModalOpen, fetchCombinations]);
+
+  // Fetch title immediately for YouTube videos if not already valid
+  useEffect(() => {
+    const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
+    const hasValidTitle = link.title && 
+      !link.title.includes('youtube.com') && 
+      !link.title.includes('youtu.be') && 
+      !link.title.startsWith('http');
+    
+    if (isYouTube && !hasValidTitle && !youtubeTitle) {
+      // Fetch title immediately
+      fetchAndStoreTitle(link).then((fetchedTitle) => {
+        if (fetchedTitle) {
+          setYoutubeTitle(fetchedTitle);
+        }
+      }).catch(err => {
+        console.error('Error fetching title in LinkCard:', err);
+      });
+    }
+  }, [link.url, link.title, link.id, youtubeTitle]); // Only run when link changes
 
   const handleAddToCombination = async () => {
     if (!selectedCombination) return;
@@ -170,15 +193,30 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
   const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
   const isSoundCloud = link.url.includes('soundcloud.com');
   
+  // Check if title is valid (not a URL)
+  const isValidTitle = (title: string | undefined | null): boolean => {
+    if (!title || !title.trim()) return false;
+    if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
+      return false;
+    }
+    return true;
+  };
+  
+  // Use youtubeTitle if available, otherwise use link.title if valid
+  const displayTitle = isYouTube 
+    ? (youtubeTitle || (isValidTitle(link.title) ? link.title : ''))
+    : link.title;
+  
   return (
     <>
-      <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300" ref={cardRef}>
-        <CardContent className="p-2">
+      <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300 min-h-[400px] flex flex-col" ref={cardRef}>
+        <CardContent className="p-2 flex flex-col flex-1">
           {(isSpotify || isYouTube || isSoundCloud) ? (
             <div className="w-full">
           <CachedEmbed 
                 url={link.url}
                 linkId={link.id}
+                initialTitle={link.title || ''}
                 onLoad={() => {
                   // You can add any additional logic here when the embed loads
                 }}
@@ -197,6 +235,11 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
                 description: "Unavailable YouTube video was removed.",
               });
             }}
+            onTitleFetched={(title) => {
+              if (isYouTube) {
+                setYoutubeTitle(title);
+              }
+            }}
               />
             </div>
           ) : (
@@ -204,29 +247,34 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
               Unsupported URL format
             </div>
           )}
-          <div className="p-4 space-y-3">
-            <h3 className="font-semibold text-lg text-[#e6e2d9] line-clamp-2">{link.title}</h3>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="px-2 py-1 text-xs font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
-                  {link.genre}
-                </span>
-                <span className="px-2 py-1 text-xs font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
-                  {link.type}
-                </span>
+          <div className="p-4 space-y-3 flex flex-col flex-1">
+            {/* Show title for all videos, including YouTube */}
+            {displayTitle && displayTitle.trim() && (
+              <h3 className="text-lg text-[#e6e2d9] line-clamp-2 flex-1 flex items-center font-semibold">
+                {displayTitle}
+              </h3>
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10 mt-auto">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 text-[#e6e2d9] hover:text-indigo-400 transition-all duration-200"
+                  onClick={() => setIsAddModalOpen(true)}
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2 py-1 text-xs font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
+                    {link.genre}
+                  </span>
+                  <span className="px-2 py-1 text-xs font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
+                    {link.type}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10">
               <span className="text-xs text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
               <span className="text-xs text-[#e6e2d9]/70">by {link.username}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 text-[#e6e2d9] hover:text-indigo-400 transition-all duration-200"
-                onClick={() => setIsAddModalOpen(true)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
             </div>
           </div>
         </CardContent>
