@@ -39,7 +39,7 @@ interface SubmitFormProps {
     onSuccess: () => void;
 }
 
-const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres, onNewLinkAdded, username, onSuccess }) => {
+const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres, onNewLinkAdded, username, onSuccess }) => {
     const { toast } = useToast();
     const [formData, setFormData] = useState({
         url: '',
@@ -50,6 +50,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres, onNewLinkAdded
     const [customTypeValue, setCustomTypeValue] = useState('');
     const [customGenreMode, setCustomGenreMode] = useState(false);
     const [customGenreValue, setCustomGenreValue] = useState('');
+    const [genres, setGenres] = useState(initialGenres);
     const [errors, setErrors] = useState<FormErrors>({ 
         url: null, 
         type: null, 
@@ -347,6 +348,11 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres, onNewLinkAdded
                                 onClick={() => {
                                     const val = customTypeValue.trim();
                                     if (!val) return;
+                                    // Agregar el nuevo tipo a la lista de tipos
+                                    const existingTypes = ['Mix', 'Video', 'Song'];
+                                    if (!existingTypes.includes(val)) {
+                                        existingTypes.push(val);
+                                    }
                                     handleChange('type', val);
                                     setCustomTypeMode(false);
                                     setCustomTypeValue('');
@@ -420,6 +426,12 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres, onNewLinkAdded
                                 onClick={() => {
                                     const val = customGenreValue.trim();
                                     if (!val) return;
+                                    // Agregar el nuevo género a la lista de géneros
+                                    const genreLower = val.toLowerCase();
+                                    if (!genres.some(g => g.value.toLowerCase() === genreLower)) {
+                                        const newGenre = { value: val, count: 1 };
+                                        setGenres(prevGenres => [...prevGenres, newGenre]);
+                                    }
                                     handleChange('genre', val);
                                     setCustomGenreMode(false);
                                     setCustomGenreValue('');
