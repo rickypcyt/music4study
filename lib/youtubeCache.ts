@@ -9,6 +9,7 @@ interface CachedVideoInfo {
 
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const CACHE_KEY_PREFIX = 'yt_video_info_';
+const MAX_CACHE_SIZE = 500; // Maximum number of cached items to prevent excessive memory usage
 
 // In-memory cache for request deduplication
 const pendingRequests = new Map<string, Promise<CachedVideoInfo | null>>();
@@ -48,6 +49,13 @@ export const youtubeCache = {
     if (typeof window === 'undefined') return;
 
     try {
+      // Check cache size and clean up if needed
+      const currentSize = youtubeCache.getSize();
+      if (currentSize >= MAX_CACHE_SIZE) {
+        // Remove oldest 20% of entries
+        youtubeCache.cleanupOldest(Math.floor(MAX_CACHE_SIZE * 0.2));
+      }
+
       const data: CachedVideoInfo = {
         title,
         channelTitle,
@@ -114,6 +122,61 @@ export const youtubeCache = {
       }
     } catch (error) {
       console.warn('Error cleaning YouTube cache:', error);
+    }
+  },
+
+  /**
+   * Get current cache size
+   */
+  getSize: (): number => {
+    if (typeof window === 'undefined') return 0;
+
+    try {
+      let count = 0;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(CACHE_KEY_PREFIX)) {
+          count++;
+        }
+      }
+      return count;
+    } catch {
+      return 0;
+    }
+  },
+
+  /**
+   * Clean up oldest cache entries
+   */
+  cleanupOldest: (count: number): void => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const entries: Array<{ key: string; cachedAt: number }> = [];
+      
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith(CACHE_KEY_PREFIX)) {
+          try {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+              const data: CachedVideoInfo = JSON.parse(cached);
+              entries.push({ key, cachedAt: data.cachedAt });
+            }
+          } catch {
+            // Invalid entry, remove it
+            if (key) localStorage.removeItem(key);
+          }
+        }
+      }
+
+      // Sort by cachedAt (oldest first) and remove the oldest ones
+      entries.sort((a, b) => a.cachedAt - b.cachedAt);
+      entries.slice(0, count).forEach(entry => {
+        localStorage.removeItem(entry.key);
+      });
+    } catch (error) {
+      console.warn('Error cleaning up oldest cache entries:', error);
     }
   },
 

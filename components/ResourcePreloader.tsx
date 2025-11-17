@@ -9,8 +9,8 @@ interface ResourcePreloaderProps {
 
 export default function ResourcePreloader({ 
   fonts = [
-    'https://fonts.gstatic.com/s/roboto/v18/KFOmCnqEu92Fr1Mu4mxK.woff2',
-    // Add other critical fonts here
+    // Add critical fonts here if needed
+    // Note: Geist fonts are handled by Next.js font optimization
   ],
   domains = [
     'https://www.youtube.com',

@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     const results: Record<string, { title: string; channelTitle: string }> = {};
 
     if (data.items && Array.isArray(data.items)) {
-      data.items.forEach((item: any) => {
+      data.items.forEach((item: { id: string; snippet?: { title: string; channelTitle?: string } }) => {
         if (item.snippet) {
           results[item.id] = {
             title: item.snippet.title,

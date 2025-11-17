@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 interface ViewTransitionProps {
   children: React.ReactNode;
   viewKey: string;
+  className?: string;
 }
 
 const containerVariants = {
@@ -19,7 +20,7 @@ const containerVariants = {
     scale: 1,
     transition: {
       duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94], // Smooth cubic-bezier for natural motion
+      ease: [0.25, 0.46, 0.45, 0.94] as const, // Smooth cubic-bezier for natural motion
       staggerChildren: 0.04,
       delayChildren: 0.08
     }
@@ -30,7 +31,7 @@ const containerVariants = {
     scale: 0.97,
     transition: {
       duration: 0.35,
-      ease: [0.25, 0.46, 0.45, 0.94]
+      ease: [0.25, 0.46, 0.45, 0.94] as const
     }
   }
 };
@@ -47,12 +48,12 @@ const childVariants = {
     scale: 1,
     transition: {
       duration: 0.4,
-      ease: [0.25, 0.46, 0.45, 0.94]
+      ease: [0.25, 0.46, 0.45, 0.94] as const
     }
   }
 };
 
-export default function ViewTransition({ children, viewKey }: ViewTransitionProps) {
+export default function ViewTransition({ children, viewKey, className = '' }: ViewTransitionProps) {
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
@@ -61,9 +62,9 @@ export default function ViewTransition({ children, viewKey }: ViewTransitionProp
         initial="hidden"
         animate="visible"
         exit="exit"
-        className="w-full"
+        className={`w-full ${className}`}
       >
-        <motion.div variants={childVariants}>
+        <motion.div variants={childVariants} className="h-full flex flex-col">
           {children}
         </motion.div>
       </motion.div>

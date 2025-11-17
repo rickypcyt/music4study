@@ -17,6 +17,7 @@ interface CachedEmbedProps {
   onError?: () => void;
   onUnavailable?: () => void;
   onTitleFetched?: (title: string, channelTitle?: string) => void;
+  priority?: boolean; // For LCP images above the fold
 }
 
 export default function CachedEmbed({ 
@@ -28,6 +29,7 @@ export default function CachedEmbed({
   onError,
   onUnavailable,
   onTitleFetched,
+  priority = false,
 }: CachedEmbedProps) {
   const [embedData, setEmbedData] = useState<{ html: string; error?: boolean; thumbnailUrl?: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,20 +73,20 @@ export default function CachedEmbed({
       }
     };
 
-    // Set up intersection observer for lazy loading
+    // Set up intersection observer for lazy loading with larger rootMargin for better performance
     if ('IntersectionObserver' in window) {
       observerRef.current = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
-            if (entry.isIntersecting) {
+            if (entry.isIntersecting && mounted) {
               loadEmbed();
               observerRef.current?.disconnect();
             }
           });
         },
         { 
-          rootMargin: '50px 0px',
-          threshold: 0.1 
+          rootMargin: '100px 0px', // Increased for better prefetching
+          threshold: 0.01 // Lower threshold for earlier loading
         }
       );
 
@@ -100,6 +102,7 @@ export default function CachedEmbed({
       mounted = false;
       if (observerRef.current) {
         observerRef.current.disconnect();
+        observerRef.current = null;
       }
     };
   }, [url, onLoad, onError]);
@@ -161,8 +164,8 @@ export default function CachedEmbed({
           fill
           className="object-cover rounded-lg"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          priority={false}
-          loading="lazy"
+          priority={priority}
+          loading={priority ? undefined : "lazy"}
         />
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 hover:bg-opacity-30 transition-opacity">
           <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center">
@@ -191,6 +194,7 @@ export default function CachedEmbed({
           className={className}
           onUnavailable={onUnavailable}
           onTitleFetched={onTitleFetched}
+          priority={priority}
         />
       );
     }

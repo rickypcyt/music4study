@@ -23,7 +23,7 @@
 
   /* Actualizar el contenedor de la aplicación */
   .app-container {
-    @apply min-h-screen;
+    @apply min-h-screen h-screen flex flex-col;
     background: hsl(var(--background));
   }
 

@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, memo } from "react";
 
 import { Button } from "@/components/ui/button";
 import CachedEmbed from './embeds/CachedEmbed';
@@ -10,7 +10,6 @@ import { Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
-import { extractYouTubeId } from "@/components/embeds/LazyYouTubeEmbed";
 
 interface Link {
   id: string;
@@ -25,6 +24,7 @@ interface Link {
 interface LinkCardProps {
   link: Link;
   onRemoved?: (id: string) => void;
+  index?: number; // Index in the grid for priority loading
 }
 
 interface Combination {
@@ -44,7 +44,7 @@ const formatDate = (dateString: string) => {
 
 
 
-export default function LinkCard({ link, onRemoved }: LinkCardProps) {
+function LinkCard({ link, onRemoved, index }: LinkCardProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState("");
@@ -80,25 +80,38 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
     }
   }, [isAddModalOpen, fetchCombinations]);
 
-  // Fetch title immediately for YouTube videos if not already valid
+  // Fetch title immediately for YouTube videos if title is null or invalid
+  // Only fetch if: YouTube link AND (title is null OR title is invalid) AND not already fetched
   useEffect(() => {
+    let cancelled = false;
     const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
-    const hasValidTitle = link.title && 
-      !link.title.includes('youtube.com') && 
-      !link.title.includes('youtu.be') && 
-      !link.title.startsWith('http');
     
-    if (isYouTube && !hasValidTitle && !youtubeTitle) {
-      // Fetch title immediately
+    // Check if title is null or invalid
+    const titleIsNull = link.title === null || link.title === undefined;
+    const titleIsInvalid = link.title && (
+      link.title.includes('youtube.com') || 
+      link.title.includes('youtu.be') || 
+      link.title.startsWith('http')
+    );
+    
+    // Only fetch if: YouTube AND (title is null OR invalid) AND not already fetched
+    if (isYouTube && (titleIsNull || titleIsInvalid) && !youtubeTitle) {
+      // Fetch title and save to Supabase
       fetchAndStoreTitle(link).then((fetchedTitle) => {
-        if (fetchedTitle) {
+        if (!cancelled && fetchedTitle) {
           setYoutubeTitle(fetchedTitle);
         }
       }).catch(err => {
-        console.error('Error fetching title in LinkCard:', err);
+        if (!cancelled) {
+          console.error('Error fetching title in LinkCard:', err);
+        }
       });
     }
-  }, [link.url, link.title, link.id, youtubeTitle]); // Only run when link changes
+
+    return () => {
+      cancelled = true;
+    };
+  }, [link, youtubeTitle]); // Only run when link changes
 
   const handleAddToCombination = async () => {
     if (!selectedCombination) return;
@@ -217,6 +230,7 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
                 url={link.url}
                 linkId={link.id}
                 initialTitle={link.title || ''}
+                priority={index !== undefined && index < 8} // Priority for first 8 images (LCP)
                 onLoad={() => {
                   // You can add any additional logic here when the embed loads
                 }}
@@ -349,4 +363,15 @@ export default function LinkCard({ link, onRemoved }: LinkCardProps) {
       </Dialog>
     </>
   );
-} 
+}
+
+// Memoize to prevent unnecessary re-renders
+export default memo(LinkCard, (prevProps, nextProps) => {
+  // Only re-render if link data actually changed
+  return (
+    prevProps.link.id === nextProps.link.id &&
+    prevProps.link.title === nextProps.link.title &&
+    prevProps.link.url === nextProps.link.url &&
+    prevProps.index === nextProps.index
+  );
+}); 

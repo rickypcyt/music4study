@@ -13,6 +13,7 @@ interface LazyYouTubeEmbedProps {
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
   onUnavailable?: () => void;
   onTitleFetched?: (title: string, channelTitle?: string) => void;
+  priority?: boolean; // For LCP images above the fold
 }
 
 interface VideoInfo {
@@ -27,7 +28,8 @@ export default function LazyYouTubeEmbed({
   className = '',
   thumbnailQuality = 'hqdefault',
   onUnavailable,
-  onTitleFetched
+  onTitleFetched,
+  priority = false
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -47,7 +49,6 @@ export default function LazyYouTubeEmbed({
   };
   
   const displayTitle = videoInfo?.title || (isValidTitle(initialTitle) ? initialTitle : '');
-  const displayChannel = videoInfo?.channelTitle || '';
   
   // Debug in development
   if (process.env.NODE_ENV === 'development') {
@@ -70,17 +71,21 @@ export default function LazyYouTubeEmbed({
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
     // Fetch video info immediately on mount (don't wait for availability check)
     const fetchVideoInfo = async () => {
       // Check cache first
       const cached = youtubeCache.get(videoId);
       if (cached) {
-        setVideoInfo({
-          title: cached.title,
-          channelTitle: cached.channelTitle || ''
-        });
-        if (onTitleFetched) {
-          onTitleFetched(cached.title, cached.channelTitle);
+        if (isMounted) {
+          setVideoInfo({
+            title: cached.title,
+            channelTitle: cached.channelTitle || ''
+          });
+          if (onTitleFetched) {
+            onTitleFetched(cached.title, cached.channelTitle);
+          }
         }
         return;
       }
@@ -90,7 +95,7 @@ export default function LazyYouTubeEmbed({
       if (pendingRequest) {
         try {
           const cached = await pendingRequest;
-          if (cached) {
+          if (isMounted && cached) {
             setVideoInfo({
               title: cached.title,
               channelTitle: cached.channelTitle || ''
@@ -147,7 +152,7 @@ export default function LazyYouTubeEmbed({
 
       // Wait for result and update state
       const result = await fetchPromise;
-      if (result) {
+      if (isMounted && result) {
         setVideoInfo({
           title: result.title,
           channelTitle: result.channelTitle || ''
@@ -165,6 +170,8 @@ export default function LazyYouTubeEmbed({
     const checkAvailability = async () => {
       try {
         const { isAvailable } = await checkVideoAvailability(videoId);
+        if (!isMounted) return;
+        
         if (!isAvailable) {
           // Mark as load error (will show "Video Unavailable")
           setLoadError(true);
@@ -172,12 +179,18 @@ export default function LazyYouTubeEmbed({
           onUnavailable?.();
         }
       } catch (err) {
-        console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
-        setLoadError(true);
+        if (isMounted) {
+          console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
+          setLoadError(true);
+        }
       }
     };
 
     checkAvailability();
+
+    return () => {
+      isMounted = false;
+    };
   }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
   const handleIframeError = () => {
@@ -273,7 +286,8 @@ export default function LazyYouTubeEmbed({
               className={`w-full h-full object-cover ${isThumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
               width={480}
               height={360}
-              loading="lazy"
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
               onLoadingComplete={() => setIsThumbnailLoaded(true)}
               onError={handleThumbnailError}
               unoptimized
@@ -305,6 +319,7 @@ export default function LazyYouTubeEmbed({
           allowFullScreen
           onError={handleIframeError}
           loading="lazy"
+          sandbox="allow-scripts allow-same-origin allow-presentation"
         />
       )}
       </div>

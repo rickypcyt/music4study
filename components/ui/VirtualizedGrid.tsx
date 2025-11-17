@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface VirtualizedGridProps<T> {
@@ -12,50 +12,130 @@ interface VirtualizedGridProps<T> {
   columns?: number;
 }
 
-export default function VirtualizedGrid<T>({
+// Memoize the row component to prevent unnecessary re-renders
+const Row = <T,>({ 
+  rowItems, 
+  startIndex, 
+  columns, 
+  rowSize, 
+  rowStart, 
+  renderItem 
+}: { 
+  rowItems: T[];
+  startIndex: number;
+  columns: number;
+  rowSize: number;
+  rowStart: number;
+  renderItem: (item: T, index: number) => React.ReactNode;
+}) => (
+  <div
+    style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: `${rowSize}px`,
+      transform: `translateY(${rowStart}px)`,
+      display: 'grid',
+      gap: '1rem',
+      gridTemplateColumns: `repeat(${columns}, 1fr)`,
+    }}
+  >
+    {rowItems.map((item, index) => (
+      <div
+        key={`${startIndex}-${index}`}
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+      >
+        {renderItem(item, startIndex + index)}
+      </div>
+    ))}
+  </div>
+);
+
+Row.displayName = 'Row';
+
+const MemoizedRow = memo(Row) as typeof Row;
+
+function VirtualizedGridComponent<T>({
   items,
   renderItem,
-  estimateSize = 400,
-  overscan = 5,
+  estimateSize = 300,
+  overscan = 3, // Balanced for performance and memory
   className = '',
-  columns: propColumns,
+  columns: propColumns = 4,
 }: VirtualizedGridProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const [columns, setColumns] = useState(propColumns || 4);
+  const [columns, setColumns] = useState(propColumns);
+  // No necesitamos windowSize, lo eliminamos para optimizar
 
-  // Responsive columns based on screen size
-  useEffect(() => {
-    const updateColumns = () => {
-      const width = window.innerWidth;
-      const baseColumns = propColumns || 4;
-      
-      if (width < 640) {
-        setColumns(1);
-      } else if (width < 768) {
-        setColumns(2);
-      } else if (width < 1024) {
-        setColumns(2); // md breakpoint: 2 columns
-      } else if (width < 1280) {
-        setColumns(3);
-      } else {
-        setColumns(baseColumns);
-      }
-    };
+  // Memoize the items array to prevent unnecessary recalculations
+  const memoizedItems = useMemo(() => items, [items]);
 
-    updateColumns();
-    window.addEventListener('resize', updateColumns);
-    return () => window.removeEventListener('resize', updateColumns);
+  // Throttled window resize handler
+  const handleResize = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    
+    const width = window.innerWidth;
+    let newColumns = propColumns;
+    
+    if (width < 640) newColumns = 1;
+    else if (width < 768) newColumns = 2;
+    else if (width < 1024) newColumns = 2;
+    else if (width < 1280) newColumns = 3;
+    
+    setColumns(newColumns);
   }, [propColumns]);
 
-  // Calcular el número de filas basado en el número de columnas
-  const rowCount = Math.ceil(items.length / columns);
+  // Debounce resize handler
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    let timeoutId: NodeJS.Timeout;
+    const handleResizeDebounced = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(handleResize, 100);
+    };
+    
+    window.addEventListener('resize', handleResizeDebounced);
+    // Initial call
+    handleResize();
+    
+    return () => {
+      window.removeEventListener('resize', handleResizeDebounced);
+      clearTimeout(timeoutId);
+    };
+  }, [handleResize]);
 
+  // Calculate row count based on columns
+  const rowCount = Math.ceil(memoizedItems.length / columns);
+
+  // Virtualizer for rows
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => estimateSize,
+    estimateSize: useCallback(() => estimateSize, [estimateSize]),
     overscan,
   });
+
+  // Get virtual items once to avoid multiple calls
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  
+  // Calculate visible items
+  const visibleItems = useMemo(() => {
+    return virtualItems.map(virtualRow => {
+      const startIndex = virtualRow.index * columns;
+      const rowItems = memoizedItems.slice(startIndex, startIndex + columns);
+      
+      return {
+        ...virtualRow,
+        rowItems,
+        startIndex,
+      };
+    });
+  }, [virtualItems, memoizedItems, columns]);
 
   return (
     <div
@@ -63,7 +143,8 @@ export default function VirtualizedGrid<T>({
       className={`relative w-full overflow-auto ${className}`}
       style={{
         height: '100%',
-        minHeight: '400px',
+        minHeight: '600px',
+        contain: 'strict',
       }}
     >
       <div
@@ -73,40 +154,25 @@ export default function VirtualizedGrid<T>({
           position: 'relative',
         }}
       >
-        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const startIndex = virtualRow.index * columns;
-          const rowItems = items.slice(startIndex, startIndex + columns);
-
-          return (
-            <div
-              key={virtualRow.key}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: `${virtualRow.size}px`,
-                transform: `translateY(${virtualRow.start}px)`,
-                display: 'grid',
-                gap: '1rem',
-                gridTemplateColumns: `repeat(${columns}, 1fr)`,
-              }}
-            >
-              {rowItems.map((item, index) => (
-                <div
-                  key={startIndex + index}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                  }}
-                >
-                  {renderItem(item, startIndex + index)}
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        {visibleItems.map(({ key, rowItems, startIndex, size, start }) => (
+          <MemoizedRow
+            key={key}
+            rowItems={rowItems}
+            startIndex={startIndex}
+            columns={columns}
+            rowSize={size}
+            rowStart={start}
+            renderItem={renderItem}
+          />
+        ))}
       </div>
     </div>
   );
-} 
+}
+
+// Memoize the main component
+const VirtualizedGrid = memo(VirtualizedGridComponent) as <T>(
+  props: VirtualizedGridProps<T>
+) => React.JSX.Element;
+
+export default VirtualizedGrid;

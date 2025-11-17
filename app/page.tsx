@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DialogDescription } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
 import GenreCloud from '@/components/ui/GenreCloud';
@@ -90,8 +89,20 @@ function HomeContent() {
     }
     return 'coffee';
   });
+  // Limit in-memory links to prevent excessive memory usage
+  // Only keep filtered/displayed links in memory, not all links
   const allLinksRef = useRef<Link[]>([]);
   const isInitialLoadRef = useRef(true);
+  
+  // Cleanup function to limit memory usage
+  useEffect(() => {
+    return () => {
+      // Clear refs on unmount to free memory
+      if (allLinksRef.current.length > 1000) {
+        allLinksRef.current = allLinksRef.current.slice(0, 1000);
+      }
+    };
+  }, []);
   const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -167,67 +178,127 @@ function HomeContent() {
     const fetchInitialData = async () => {
       if (!isInitialLoadRef.current) return;
       
-      setLoading(true);
       setError(null);
       
+      // Check cache first and show immediately
+      const cachedData = getFromCache();
+      if (cachedData && cachedData.links) {
+        // Show cached data immediately without loading state
+        allLinksRef.current = cachedData.links;
+        updateDisplayedLinks(cachedData.links);
+        setLoading(false);
+        isInitialLoadRef.current = false;
+        console.log('Using cached links:', cachedData.links.length);
+        
+        // Fetch fresh data in background
+        fetchFreshData();
+        return;
+      }
+      
+      // No cache, show loading and fetch
+      setLoading(true);
       try {
-        // Intentar obtener links del caché primero
-        const cachedData = getFromCache();
-        let allLinksData: Link[] | null = null;
+        const { data, error: linksError } = await supabase
+          .from('links')
+          .select('*')
+          .order('date_added', { ascending: false });
 
-        if (cachedData) {
-          allLinksData = cachedData.links;
-          console.log('Using cached links:', allLinksData.length);
-        } else {
-          // Si no hay caché o está expirado, fetch de la base de datos
-          console.log('Fetching all links from database...');
-          const { data, error: linksError } = await supabase
-            .from('links')
-            .select('*')
-            .order('date_added', { ascending: false });
-
-          if (linksError) {
-            throw linksError;
-          }
-          
-          if (data) {
-            allLinksData = data;
-            // Guardar en caché
-            saveToCache(data);
-          }
+        if (linksError) {
+          throw linksError;
         }
-
-        if (allLinksData) {
-          allLinksRef.current = allLinksData;
-          updateDisplayedLinks(allLinksData);
-          
-          // Automatically fetch and store titles for YouTube videos
-          // Run in background without blocking UI
-          fetchAndStoreTitles(allLinksData).then(() => {
-            // Refresh links from database to get updated titles
-            supabase
-              .from('links')
-              .select('*')
-              .order('date_added', { ascending: false })
-              .then(({ data, error }) => {
-                if (!error && data) {
-                  allLinksRef.current = data;
-                  saveToCache(data);
-                  updateDisplayedLinks(data);
-                }
-              });
-          }).catch(err => {
-            console.error('Error fetching titles:', err);
-          });
+        
+        if (data) {
+          allLinksRef.current = data;
+          saveToCache(data);
+          updateDisplayedLinks(data);
         }
 
         isInitialLoadRef.current = false;
         setLoading(false);
+        
+        // Fetch titles in background without blocking
+        if (data && data.length > 0) {
+          fetchTitlesInBackground(data);
+        }
       } catch (error) {
         console.error('Error fetching initial data:', error);
         setError('Failed to load data. Please try again.');
         setLoading(false);
+        isInitialLoadRef.current = false;
       }
+    };
+
+    // Helper function to fetch fresh data in background
+    const fetchFreshData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('links')
+          .select('*')
+          .order('date_added', { ascending: false });
+
+        if (!error && data) {
+          allLinksRef.current = data;
+          saveToCache(data);
+          updateDisplayedLinks(data);
+          
+          // Fetch titles after updating
+          if (data.length > 0) {
+            fetchTitlesInBackground(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching fresh data:', err);
+      }
+    };
+
+    // Helper function to fetch titles in background
+    const fetchTitlesInBackground = async (links: Link[]) => {
+      // Use requestIdleCallback if available, otherwise setTimeout
+      const scheduleUpdate = (callback: () => void) => {
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          requestIdleCallback(callback, { timeout: 2000 });
+        } else {
+          setTimeout(callback, 100);
+        }
+      };
+
+      scheduleUpdate(async () => {
+        try {
+          await fetchAndStoreTitles(links);
+          // Only refresh titles that were actually updated
+          // Fetch only links that might have been updated (YouTube links without titles)
+          const youtubeLinksWithoutTitles = links.filter(link => {
+            const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
+            return isYouTube && (!link.title || link.title === null || link.title.includes('youtube.com') || link.title.includes('youtu.be'));
+          });
+
+          if (youtubeLinksWithoutTitles.length > 0) {
+            // Fetch only the updated links instead of all links
+            const linkIds = youtubeLinksWithoutTitles.map(l => l.id);
+            const { data, error } = await supabase
+              .from('links')
+              .select('*')
+              .in('id', linkIds);
+            
+            if (!error && data) {
+              // Update only the changed links in the current data
+              const updatedLinks = [...allLinksRef.current];
+              data.forEach(updatedLink => {
+                const index = updatedLinks.findIndex(l => l.id === updatedLink.id);
+                if (index !== -1) {
+                  updatedLinks[index] = updatedLink;
+                }
+              });
+              
+              allLinksRef.current = updatedLinks;
+              saveToCache(updatedLinks);
+              updateDisplayedLinks(updatedLinks);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching titles in background:', err);
+        }
+      });
     };
 
     fetchInitialData();
@@ -304,12 +375,42 @@ function HomeContent() {
 
   // Función para guardar en caché
   const saveToCache = (links: Link[]) => {
-    const cache: LinksCache = {
-      links,
-      lastUpdated: new Date().toISOString()
-    };
-    localStorage.setItem('music4study_links_cache', JSON.stringify(cache));
-    console.log('Links saved to cache');
+    try {
+      // Limit cache to most recent 1000 links to prevent excessive memory usage
+      const limitedLinks = links.slice(0, 1000);
+      const cache: LinksCache = {
+        links: limitedLinks,
+        lastUpdated: new Date().toISOString()
+      };
+      const cacheString = JSON.stringify(cache);
+      
+      // Check if cache would exceed reasonable size (5MB limit)
+      if (cacheString.length > 5 * 1024 * 1024) {
+        // Reduce to 500 links if too large
+        const smallerCache: LinksCache = {
+          links: links.slice(0, 500),
+          lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem('music4study_links_cache', JSON.stringify(smallerCache));
+      } else {
+        localStorage.setItem('music4study_links_cache', cacheString);
+      }
+      console.log('Links saved to cache');
+    } catch (error) {
+      // If localStorage is full, try to clear old cache entries
+      console.warn('Error saving to cache, clearing old entries:', error);
+      try {
+        localStorage.removeItem('music4study_links_cache');
+        // Retry with smaller dataset
+        const smallerCache: LinksCache = {
+          links: links.slice(0, 500),
+          lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem('music4study_links_cache', JSON.stringify(smallerCache));
+      } catch (e) {
+        console.error('Failed to save cache:', e);
+      }
+    }
   };
 
   // Función para obtener de caché
@@ -558,8 +659,8 @@ function HomeContent() {
         currentTheme={currentTheme}
       />
       
-      <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 py-6">
-        <ViewTransition viewKey={currentView}>
+      <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col h-full">
+        <ViewTransition viewKey={currentView} className="flex-1 flex flex-col h-full">
           {currentView === 'genres' ? (
             <>
               <div className="text-center mb-8">
@@ -612,9 +713,9 @@ function HomeContent() {
               </div>
             </>
           ) : (
-            <>
+            <div className="flex-1 flex flex-col h-full">
               {selectedGenre && (
-                <div className="text-center mb-1">
+                <div className="text-center mb-1 flex-shrink-0">
                   <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide pt-6">
                     {selectedGenre} Music
                   </h1>
@@ -625,32 +726,26 @@ function HomeContent() {
               )}
 
               {loading ? (
-                <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="min-h-[60vh] flex items-center justify-center flex-1">
                   <LoadingCards />
                 </div>
               ) : links.length > 0 ? (
-                <div className="min-h-[60vh] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {links.map((link, index) => (
-                    <motion.div
-                      key={link.id}
-                      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{
-                        duration: 0.4,
-                        delay: index * 0.03,
-                        ease: [0.25, 0.46, 0.45, 0.94]
-                      }}
-                    >
-                      <LinkCard link={link} onRemoved={handleLinkRemoved} />
-                    </motion.div>
-                  ))}
-                </div>
+                <VirtualizedGrid
+                  items={links}
+                  renderItem={(link, index) => (
+                    <LinkCard link={link} onRemoved={handleLinkRemoved} index={index} />
+                  )}
+                  estimateSize={450}
+                  overscan={3}
+                  columns={4}
+                  className="flex-1 h-full"
+                />
               ) : (
-                <div className="text-center text-foreground/70 py-12">
+                <div className="text-center text-foreground/70 py-12 flex-1 flex items-center justify-center">
                   No tracks found. Be the first to add one!
                 </div>
               )}
-            </>
+            </div>
           )}
         </ViewTransition>
       </main>

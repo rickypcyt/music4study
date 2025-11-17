@@ -1,12 +1,13 @@
 'use client';
 
+import { Check, Pencil, Plus, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { useState } from 'react';
 import { useToast } from '@/components/hooks/use-toast';
-import { Pencil, Plus, Check, X } from 'lucide-react';
 
 // Type guard to safely check for an error code without using `any`
 const hasStringCode = (e: unknown): e is { code: string } => {
