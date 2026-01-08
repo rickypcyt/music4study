@@ -11,18 +11,24 @@ import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
+import SimpleGrid from '@/components/ui/SimpleGrid';
 import SubmitForm from './submit/SubmitForm';
 import ViewTransition from '@/components/ui/ViewTransition';
-import VirtualizedGrid from '@/components/ui/VirtualizedGrid';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
 
-const ITEMS_PER_PAGE = 12;
+// ============================================
+// CONSTANTS
+// ============================================
 const MAX_CACHE_SIZE = 1000;
 const CACHE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const CACHE_KEY = 'music4study_links_cache';
 
+// ============================================
+// TYPES
+// ============================================
 interface Link {
   id: string;
   title: string;
@@ -49,12 +55,15 @@ interface LinksCache {
 }
 
 type ViewType = 'home' | 'genres' | 'combinations';
+type SortType = 'date' | 'genre' | 'username';
 
 // ============================================
 // CACHE UTILITIES
 // ============================================
 const CacheManager = {
   save: (links: Link[]): void => {
+    if (typeof window === 'undefined') return;
+    
     try {
       const limitedLinks = links.slice(0, MAX_CACHE_SIZE);
       const cache: LinksCache = {
@@ -68,27 +77,24 @@ const CacheManager = {
           links: links.slice(0, 500),
           lastUpdated: new Date().toISOString()
         };
-        localStorage.setItem('music4study_links_cache', JSON.stringify(smallerCache));
+        localStorage.setItem(CACHE_KEY, JSON.stringify(smallerCache));
       } else {
-        localStorage.setItem('music4study_links_cache', cacheString);
+        localStorage.setItem(CACHE_KEY, cacheString);
       }
     } catch (error) {
       console.warn('Error saving to cache:', error);
       try {
-        localStorage.removeItem('music4study_links_cache');
-        const smallerCache: LinksCache = {
-          links: links.slice(0, 500),
-          lastUpdated: new Date().toISOString()
-        };
-        localStorage.setItem('music4study_links_cache', JSON.stringify(smallerCache));
+        localStorage.removeItem(CACHE_KEY);
       } catch (e) {
-        console.error('Failed to save cache:', e);
+        console.error('Failed to clear cache:', e);
       }
     }
   },
 
   get: (): LinksCache | null => {
-    const cached = localStorage.getItem('music4study_links_cache');
+    if (typeof window === 'undefined') return null;
+    
+    const cached = localStorage.getItem(CACHE_KEY);
     if (!cached) return null;
     
     try {
@@ -119,11 +125,12 @@ const getInitialView = (pathname: string): ViewType => {
   return 'home';
 };
 
-const getInitialSort = (searchParams: URLSearchParams): string => {
+const getInitialSort = (searchParams: URLSearchParams): SortType => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('sort') || searchParams.get('sort') || 'date';
+    const stored = localStorage.getItem('sort') as SortType | null;
+    if (stored) return stored;
   }
-  return searchParams.get('sort') || 'date';
+  return (searchParams.get('sort') as SortType) || 'date';
 };
 
 const getInitialTheme = (): string => {
@@ -131,6 +138,21 @@ const getInitialTheme = (): string => {
     return localStorage.getItem('theme') || 'coffee';
   }
   return 'coffee';
+};
+
+const sortLinks = (links: Link[], sortType: SortType): Link[] => {
+  return [...links].sort((a, b) => {
+    switch (sortType) {
+      case 'date':
+        return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
+      case 'genre':
+        return a.genre.localeCompare(b.genre);
+      case 'username':
+        return a.username.localeCompare(b.username);
+      default:
+        return 0;
+    }
+  });
 };
 
 // ============================================
@@ -144,25 +166,20 @@ function HomeContent() {
 
   // State
   const [currentView, setCurrentView] = useState<ViewType>(() => getInitialView(pathname));
-  const [links, setLinks] = useState<Link[]>([]);
+  const [allLinks, setAllLinks] = useState<Link[]>([]);
   const [genres, setGenres] = useState<{ value: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [username] = useState<string>('');
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
-  const [currentSort, setCurrentSort] = useState(() => getInitialSort(searchParams));
+  const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(searchParams));
   const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
-  const [displayedCount, setDisplayedCount] = useState(ITEMS_PER_PAGE);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Refs
-  const allLinksRef = useRef<Link[]>([]);
   const isInitialLoadRef = useRef(true);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
   const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
 
   const selectedGenre = searchParams.get('genre');
@@ -171,38 +188,21 @@ function HomeContent() {
   // MEMOIZED VALUES
   // ============================================
   const filteredAndSortedLinks = useMemo(() => {
-    let filtered = [...allLinksRef.current];
+    let filtered = allLinks;
 
     // Filter by genre
     if (selectedGenre) {
       const normalized = normalizeGenre(selectedGenre);
-      filtered = filtered.filter(link => normalizeGenre(link.genre) === normalized);
+      filtered = allLinks.filter(link => normalizeGenre(link.genre) === normalized);
     }
 
     // Sort
-    filtered.sort((a, b) => {
-      switch (currentSort) {
-        case 'date':
-          return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
-        case 'genre':
-          return a.genre.localeCompare(b.genre);
-        case 'username':
-          return a.username.localeCompare(b.username);
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
-  }, [selectedGenre, currentSort]);
+    return sortLinks(filtered, currentSort);
+  }, [allLinks, selectedGenre, currentSort]);
 
   // ============================================
-  // CALLBACKS
+  // DATA FETCHING CALLBACKS
   // ============================================
-  const updateDisplayedLinks = useCallback(() => {
-    setLinks(filteredAndSortedLinks);
-  }, [filteredAndSortedLinks]);
-
   const fetchGenres = useCallback(async () => {
     if (genresCacheRef.current.length > 0) {
       setGenres(genresCacheRef.current);
@@ -249,45 +249,65 @@ function HomeContent() {
             .in('id', linkIds);
           
           if (!error && data) {
-            const updatedLinks = [...allLinksRef.current];
-            data.forEach(updatedLink => {
-              const index = updatedLinks.findIndex(l => l.id === updatedLink.id);
-              if (index !== -1) {
-                updatedLinks[index] = updatedLink;
-              }
+            setAllLinks(prevLinks => {
+              const updatedLinks = [...prevLinks];
+              data.forEach(updatedLink => {
+                const index = updatedLinks.findIndex(l => l.id === updatedLink.id);
+                if (index !== -1) {
+                  updatedLinks[index] = updatedLink;
+                }
+              });
+              CacheManager.save(updatedLinks);
+              return updatedLinks;
             });
-            
-            allLinksRef.current = updatedLinks;
-            CacheManager.save(updatedLinks);
-            updateDisplayedLinks();
           }
         }
       } catch (err) {
         console.error('Error fetching titles in background:', err);
       }
     });
-  }, [updateDisplayedLinks]);
+  }, []);
 
-  const fetchFreshData = useCallback(async () => {
+  const fetchLinksData = useCallback(async (useCache: boolean = true) => {
     try {
+      // Try cache first if requested
+      if (useCache) {
+        const cachedData = CacheManager.get();
+        if (cachedData?.links) {
+          setAllLinks(cachedData.links);
+          setLoading(false);
+          // Fetch fresh data in background
+          fetchLinksData(false);
+          return;
+        }
+      }
+
       const { data, error } = await supabase
         .from('links')
         .select('*')
         .order('date_added', { ascending: false });
 
-      if (!error && data) {
-        allLinksRef.current = data;
+      if (error) throw error;
+      
+      if (data) {
+        setAllLinks(data);
         CacheManager.save(data);
-        updateDisplayedLinks();
         
         if (data.length > 0) {
           fetchTitlesInBackground(data);
         }
       }
     } catch (err) {
-      console.error('Error fetching fresh data:', err);
+      console.error('Error fetching links:', err);
+      if (useCache) {
+        setError('Failed to load data. Please try again.');
+      }
+    } finally {
+      if (useCache) {
+        setLoading(false);
+      }
     }
-  }, [updateDisplayedLinks, fetchTitlesInBackground]);
+  }, [fetchTitlesInBackground]);
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -299,6 +319,7 @@ function HomeContent() {
         .order('created_at', { ascending: false });
 
       if (combinationsError) throw combinationsError;
+      
       if (!combinationsData?.length) {
         setCombinations([]);
         return;
@@ -307,10 +328,7 @@ function HomeContent() {
       const combinationIds = combinationsData.map(c => c.id);
       const { data: fetchedLinks, error: linksError } = await supabase
         .from('combination_links')
-        .select(`
-          combination_id,
-          link:link_id (*)
-        `)
+        .select(`combination_id, link:link_id (*)`)
         .in('combination_id', combinationIds);
 
       if (linksError) {
@@ -346,6 +364,9 @@ function HomeContent() {
     }
   }, [toast]);
 
+  // ============================================
+  // EVENT HANDLERS
+  // ============================================
   const handleGenreClick = useCallback((genre: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('genre', genre);
@@ -354,29 +375,28 @@ function HomeContent() {
   }, [router, searchParams]);
 
   const handleHomeClick = useCallback(() => {
-    setCurrentView('home');
     router.replace('/', { scroll: false });
   }, [router]);
 
   const handleGenresClick = useCallback(() => {
-    setCurrentView('genres');
     const params = new URLSearchParams();
     params.set('view', 'genres');
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router]);
 
   const handleCombinationsClick = useCallback(() => {
-    setCurrentView('combinations');
     const params = new URLSearchParams();
     params.set('view', 'combinations');
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router]);
 
   const handleSortChange = useCallback((sortBy: string) => {
-    setCurrentSort(sortBy);
-    localStorage.setItem('sort', sortBy);
+    const newSort = sortBy as SortType;
+    setCurrentSort(newSort);
+    localStorage.setItem('sort', newSort);
+    
     const newParams = new URLSearchParams(searchParams.toString());
-    newParams.set('sort', sortBy);
+    newParams.set('sort', newSort);
     router.push(`/?${newParams.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
@@ -398,11 +418,12 @@ function HomeContent() {
   }, [toast]);
 
   const handleLinkRemoved = useCallback((removedId: string) => {
-    const updated = allLinksRef.current.filter(l => l.id !== removedId);
-    allLinksRef.current = updated;
-    CacheManager.save(updated);
-    updateDisplayedLinks();
-  }, [updateDisplayedLinks]);
+    setAllLinks(prevLinks => {
+      const updated = prevLinks.filter(l => l.id !== removedId);
+      CacheManager.save(updated);
+      return updated;
+    });
+  }, []);
 
   const handleCreateCombination = useCallback(async () => {
     if (!newCombinationName.trim()) return;
@@ -435,21 +456,26 @@ function HomeContent() {
     }
   }, [newCombinationName, toast, fetchCombinations]);
 
-  const handleSubmitClick = useCallback(() => {
-    setIsSubmitModalOpen(true);
-  }, []);
-
   const handleNewLinkAdded = useCallback(async (newLink: Link) => {
     const updatedTitle = await fetchAndStoreTitle(newLink);
     if (updatedTitle) {
       newLink.title = updatedTitle;
     }
     
-    const updatedLinks = [newLink, ...allLinksRef.current];
-    allLinksRef.current = updatedLinks;
-    CacheManager.save(updatedLinks);
-    updateDisplayedLinks();
-  }, [updateDisplayedLinks]);
+    setAllLinks(prevLinks => {
+      const updatedLinks = [newLink, ...prevLinks];
+      CacheManager.save(updatedLinks);
+      return updatedLinks;
+    });
+  }, []);
+
+  const handleSubmitSuccess = useCallback(() => {
+    setIsSubmitModalOpen(false);
+    toast({
+      title: "¡Éxito!",
+      description: "Tu enlace ha sido enviado correctamente.",
+    });
+  }, [toast]);
 
   // ============================================
   // EFFECTS
@@ -457,63 +483,17 @@ function HomeContent() {
   
   // Initial data fetch
   useEffect(() => {
-    const fetchInitialData = async () => {
-      if (!isInitialLoadRef.current) return;
-      
-      setError(null);
-      
-      const cachedData = CacheManager.get();
-      if (cachedData?.links) {
-        allLinksRef.current = cachedData.links;
-        updateDisplayedLinks();
-        setLoading(false);
-        isInitialLoadRef.current = false;
-        fetchFreshData();
-        return;
-      }
-      
-      setLoading(true);
-      try {
-        const { data, error: linksError } = await supabase
-          .from('links')
-          .select('*')
-          .order('date_added', { ascending: false });
-
-        if (linksError) throw linksError;
-        
-        if (data) {
-          allLinksRef.current = data;
-          CacheManager.save(data);
-          updateDisplayedLinks();
-          
-          if (data.length > 0) {
-            fetchTitlesInBackground(data);
-          }
-        }
-
-        isInitialLoadRef.current = false;
-      } catch (err) {
-        console.error('Error fetching initial data:', err);
-        setError('Failed to load data. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInitialData();
-  }, [updateDisplayedLinks, fetchFreshData, fetchTitlesInBackground]);
+    if (!isInitialLoadRef.current) return;
+    
+    isInitialLoadRef.current = false;
+    setError(null);
+    fetchLinksData(true);
+  }, [fetchLinksData]);
 
   // Fetch genres on mount
   useEffect(() => {
     fetchGenres();
   }, [fetchGenres]);
-
-  // Update displayed links when filters change
-  useEffect(() => {
-    if (!isInitialLoadRef.current) {
-      updateDisplayedLinks();
-    }
-  }, [updateDisplayedLinks]);
 
   // Update view from search params
   useEffect(() => {
@@ -534,41 +514,6 @@ function HomeContent() {
     }
   }, [currentView, fetchCombinations]);
 
-  // Infinite scroll observer
-  useEffect(() => {
-    const currentRef = loadMoreRef.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const first = entries[0];
-        if (first.isIntersecting && !isLoadingMore && links.length > displayedCount) {
-          setIsLoadingMore(true);
-          setDisplayedCount(prev => prev + ITEMS_PER_PAGE);
-          setIsLoadingMore(false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [links.length, displayedCount, isLoadingMore]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (allLinksRef.current.length > MAX_CACHE_SIZE) {
-        allLinksRef.current = allLinksRef.current.slice(0, MAX_CACHE_SIZE);
-      }
-    };
-  }, []);
-
   // ============================================
   // RENDER
   // ============================================
@@ -576,12 +521,12 @@ function HomeContent() {
   if (error) {
     return (
       <div className="min-h-screen bg-[#1a1814] flex items-center justify-center">
-        <div className="text-center text-[#e6e2d9]">
-          <h2 className="text-2xl mb-4">Error</h2>
-          <p>{error}</p>
+        <div className="text-center text-[#e6e2d9] space-y-4">
+          <h2 className="text-2xl font-semibold">Error</h2>
+          <p className="text-[#e6e2d9]/70">{error}</p>
           <Button 
-            onClick={() => window.location.reload()} 
-            className="mt-4"
+            onClick={() => window.location.reload()}
+            variant="outline"
           >
             Retry
           </Button>
@@ -596,7 +541,7 @@ function HomeContent() {
         currentView={currentView}
         onGenresClick={handleGenresClick}
         onHomeClick={handleHomeClick}
-        onSubmitClick={handleSubmitClick}
+        onSubmitClick={() => setIsSubmitModalOpen(true)}
         onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
@@ -604,11 +549,11 @@ function HomeContent() {
         currentTheme={currentTheme}
       />
       
-      <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col h-full">
-        <ViewTransition viewKey={currentView} className="flex-1 flex flex-col h-full">
+      <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col">
+        <ViewTransition viewKey={currentView} className="flex-1 flex flex-col">
           {currentView === 'genres' ? (
-            <div className="flex flex-col h-full">
-              <div className="text-center mb-8">
+            <div className="flex flex-col space-y-8">
+              <div className="text-center">
                 <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
                 <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
                   Explore music by genre. Each genre has its own unique characteristics and mood.
@@ -621,12 +566,13 @@ function HomeContent() {
             </div>
           ) : currentView === 'combinations' ? (
             <div className="space-y-8">
-              <div className="text-center">
-                <h2 className="text-5xl font-serif text-foreground mb-2">Combinations</h2>
-                <p className="text-foreground/70 text-lg">
+              <div className="text-center space-y-2">
+                <h2 className="text-5xl font-serif text-foreground">Combinations</h2>
+                <p className="text-foreground/70 text-lg max-w-3xl mx-auto">
                   Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
                 </p>
               </div>
+              
               <div className="flex justify-center">
                 <Button
                   onClick={() => setIsCreateCombinationModalOpen(true)}
@@ -635,58 +581,62 @@ function HomeContent() {
                   Create Combination
                 </Button>
               </div>
-              <div className="grid gap-8">
-                {combinations.map((combination) => (
-                  <div key={combination.id} className="space-y-6 p-6 border border-foreground/10 rounded-lg">
-                    <h2 className="text-2xl font-serif text-foreground">
-                      {combination.name}
-                    </h2>
-                    {combination.links.length > 0 ? (
-                      <VirtualizedGrid
-                        items={combination.links}
-                        renderItem={(link) => <LinkCard key={link.id} link={link} />}
-                        columns={4}
-                        className="min-h-[200px]"
-                      />
-                    ) : (
-                      <p className="text-foreground/70">No tracks in this combination yet.</p>
-                    )}
+              
+              <div className="space-y-8">
+                {combinations.length === 0 && !loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-foreground/70">No combinations yet. Create your first one!</p>
                   </div>
-                ))}
+                ) : (
+                  combinations.map((combination) => (
+                    <div key={combination.id} className="space-y-4 p-6 border border-foreground/10 rounded-lg">
+                      <h3 className="text-2xl font-serif text-foreground">
+                        {combination.name}
+                      </h3>
+                      {combination.links.length > 0 ? (
+                        <SimpleGrid
+                          items={combination.links}
+                          renderItem={(link: Link) => <LinkCard key={link.id} link={link} />}
+                          columns={4}
+                        />
+                      ) : (
+                        <p className="text-foreground/70">No tracks in this combination yet.</p>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col h-full">
+            <div className="flex-1 flex flex-col">
               {selectedGenre && (
-                <div className="text-center mb-1 flex-shrink-0">
-                  <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide pt-6">
+                <div className="text-center mb-8 pt-6">
+                  <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">
                     {selectedGenre} Music
                   </h1>
-                  <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed pb-6">
+                  <p className="text-foreground/70 max-w-3xl mx-auto text-lg leading-relaxed">
                     Explore our collection of {selectedGenre.toLowerCase()} music for studying.
                   </p>
                 </div>
               )}
 
               {loading ? (
-                <div className="min-h-[60vh] flex items-center justify-center flex-1">
+                <div className="min-h-[60vh] flex items-center justify-center">
                   <LoadingCards />
                 </div>
-              ) : links.length > 0 ? (
-                <VirtualizedGrid
-                  items={links}
-                  renderItem={(link, index) => (
-                    <LinkCard link={link} onRemoved={handleLinkRemoved} index={index} />
-                  )}
-                  estimateSize={450}
-                  overscan={3}
-                  columns={4}
-                  className="flex-1 h-full"
-                />
               ) : (
-                <div className="text-center text-foreground/70 py-12 flex-1 flex items-center justify-center">
-                  No tracks found. Be the first to add one!
-                </div>
+                <SimpleGrid
+                  items={filteredAndSortedLinks}
+                  renderItem={(link: Link, index: number) => (
+                    <LinkCard 
+                      link={link} 
+                      onRemoved={handleLinkRemoved} 
+                      index={index} 
+                    />
+                  )}
+                  columns={4}
+                  className="pb-8"
+                />
               )}
             </div>
           )}
@@ -695,10 +645,7 @@ function HomeContent() {
 
       {/* Submit Modal */}
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent
-          className="bg-[#1a1814] border-[#e6e2d9]/10 min-h-[300px]"
-          aria-describedby="submit-dialog-description"
-        >
+        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
           <DialogDescription id="submit-dialog-description" className="sr-only">
             Formulario para enviar un nuevo enlace de música
           </DialogDescription>
@@ -709,14 +656,8 @@ function HomeContent() {
             onClose={() => setIsSubmitModalOpen(false)} 
             genres={genres} 
             onNewLinkAdded={handleNewLinkAdded}
-            username={username || 'Guest'}
-            onSuccess={() => {
-              setIsSubmitModalOpen(false);
-              toast({
-                title: "¡Éxito!",
-                description: "Tu enlace ha sido enviado correctamente.",
-              });
-            }}
+            username="Guest"
+            onSuccess={handleSubmitSuccess}
           />
         </DialogContent>
       </Dialog>
@@ -726,14 +667,14 @@ function HomeContent() {
         <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
           <DialogHeader>
             <DialogTitle className="sr-only">Sign In</DialogTitle>
-            <div className="text-sm text-muted-foreground">
+            <DialogDescription className="text-sm text-muted-foreground">
               You can submit tracks as a guest, or sign in to use your personal username.
-            </div>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <Button 
               onClick={handleGoogleLogin} 
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Sign in with Google
             </Button>
@@ -777,12 +718,13 @@ function HomeContent() {
                   handleCreateCombination();
                 }
               }}
-              className="bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400 focus:ring-indigo-500 focus:border-indigo-500"
+              className="bg-slate-800/50 border-slate-700 text-slate-200 placeholder:text-slate-400"
+              autoFocus
             />
             <Button
               onClick={handleCreateCombination}
               disabled={!newCombinationName.trim()}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50"
             >
               Create Combination
             </Button>
