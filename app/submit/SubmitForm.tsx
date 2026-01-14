@@ -24,6 +24,7 @@ interface Link {
     date_added: string;
     type: string;
     username: string;
+    titleConfirmedAt?: string; // Timestamp when title was last confirmed
 }
 
 interface FormErrors {
@@ -106,48 +107,6 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
 
         setLoading(true);
         try {
-            const response = await fetch('/api/links', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    url: formData.url,
-                    type: formData.type,
-                    genre: formData.genre,
-                    username
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Error al enviar el enlace');
-            }
-
-            const newLink = await response.json();
-            onNewLinkAdded?.(newLink);
-            onSuccess();
-            onClose();
-            
-            toast({
-                title: '¡Éxito!',
-                description: 'El enlace se ha añadido correctamente.',
-            });
-        } catch (error) {
-            console.error('Error al enviar el enlace:', error);
-            toast({
-                title: 'Error',
-                description: error instanceof Error ? error.message : 'Error al enviar el enlace',
-                variant: 'destructive',
-            });
-        } finally {
-            setLoading(false);
-        }
-        e.preventDefault();
-        if (!validateForm()) return;
-
-        setLoading(true);
-        try {
             // Normalize URL and check for duplicates (case-insensitive)
             const cleanUrl = formData.url.trim();
             const { data: existing, error: checkError } = await supabase
@@ -182,8 +141,8 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
             if (error) throw error;
 
             toast({
-                title: "Success!",
-                description: "Your music has been shared.",
+                title: "¡Éxito!",
+                description: "El enlace se ha añadido correctamente.",
             });
 
             // Notificar al componente padre sobre el nuevo link
@@ -191,6 +150,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
                 onNewLinkAdded(data);
             }
 
+            onSuccess();
             onClose();
         } catch (error) {
             console.error('Error submitting form:', error);
@@ -205,7 +165,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
             } else {
                 toast({
                     title: "Error",
-                    description: "Failed to share music. Please try again.",
+                    description: error instanceof Error ? error.message : "Failed to share music. Please try again.",
                     variant: "destructive",
                 });
             }

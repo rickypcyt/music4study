@@ -11,6 +11,16 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 
+// Utility function to check if title is valid
+function isValidTitle(title: string | undefined | null): boolean {
+  if (!title || !title.trim()) return false;
+  // Don't consider URLs as valid titles
+  if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
+    return false;
+  }
+  return true;
+}
+
 interface Link {
   id: string;
   title: string;
@@ -19,6 +29,7 @@ interface Link {
   type: string;
   username: string;
   date_added: string;
+  titleConfirmedAt?: string; // Timestamp when title was last confirmed
 }
 
 interface LinkCardProps {
@@ -81,29 +92,47 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
   }, [isAddModalOpen, fetchCombinations]);
 
   // Fetch title immediately for YouTube videos if title is null or invalid
-  // Only fetch if: YouTube link AND (title is null OR title is invalid) AND not already fetched
+  // Only fetch if: YouTube link AND title needs fetching AND not already confirmed
   useEffect(() => {
     let cancelled = false;
     const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
-    
-    // Check if title is null or invalid
-    const titleIsNull = link.title === null || link.title === undefined;
-    const titleIsInvalid = link.title && (
-      link.title.includes('youtube.com') || 
-      link.title.includes('youtu.be') || 
-      link.title.startsWith('http')
-    );
-    
-    // Only fetch if: YouTube AND (title is null OR invalid) AND not already fetched
-    if (isYouTube && (titleIsNull || titleIsInvalid) && !youtubeTitle) {
-      // Fetch title and save to Supabase
+
+    // Skip if title was recently confirmed (within last hour)
+    if (link.titleConfirmedAt) {
+      const confirmedAge = Date.now() - new Date(link.titleConfirmedAt).getTime();
+      const ONE_HOUR = 60 * 60 * 1000;
+      if (confirmedAge < ONE_HOUR) {
+        console.log('⏭️ LinkCard: Skipping confirmed link', {
+          id: link.id,
+          title: link.title,
+          confirmedAge: Math.round(confirmedAge / 1000) + 's ago'
+        });
+        return;
+      }
+    }
+
+    // Check if title needs fetching
+    const needsTitleFetch = !isValidTitle(link.title) && !youtubeTitle;
+
+    // Only fetch if: YouTube AND needs title AND not already fetched
+    if (isYouTube && needsTitleFetch) {
+      console.log('🔄 LinkCard: Fetching title for link', {
+        id: link.id,
+        url: link.url,
+        currentTitle: link.title
+      });
+
       fetchAndStoreTitle(link).then((fetchedTitle) => {
         if (!cancelled && fetchedTitle) {
+          console.log('✅ LinkCard: Got title for link', {
+            id: link.id,
+            fetchedTitle: fetchedTitle
+          });
           setYoutubeTitle(fetchedTitle);
         }
       }).catch(err => {
         if (!cancelled) {
-          console.error('Error fetching title in LinkCard:', err);
+          console.error('❌ LinkCard: Error fetching title', err);
         }
       });
     }
@@ -215,9 +244,9 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
     return true;
   };
   
-  // Use youtubeTitle if available, otherwise use link.title if valid
-  const displayTitle = isYouTube 
-    ? (youtubeTitle || (isValidTitle(link.title) ? link.title : ''))
+  // Determine display title: prefer link.title if valid and confirmed, otherwise youtubeTitle
+  const displayTitle = isYouTube
+    ? (isValidTitle(link.title) ? link.title : (youtubeTitle || ''))
     : link.title;
   
   return (

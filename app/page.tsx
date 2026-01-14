@@ -3,6 +3,18 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitles';
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function isValidTitle(title: string | undefined | null): boolean {
+  if (!title || !title.trim()) return false;
+  // Don't consider URLs as valid titles
+  if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
+    return false;
+  }
+  return true;
+}
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +49,7 @@ interface Link {
   date_added: string;
   type: string;
   username: string;
+  titleConfirmedAt?: string; // Timestamp when title was last confirmed
 }
 
 interface Combination {
@@ -235,10 +248,43 @@ function HomeContent() {
     scheduleUpdate(async () => {
       try {
         await fetchAndStoreTitles(links);
-        
+
+        // Only update links that still need titles and weren't recently updated
         const youtubeLinksWithoutTitles = links.filter(link => {
           const isYouTube = link.url.includes('youtube.com') || link.url.includes('youtu.be');
-          return isYouTube && (!link.title || link.title.includes('youtube.com') || link.title.includes('youtu.be'));
+          if (!isYouTube) return false;
+
+          // Check if title is valid
+          if (!isValidTitle(link.title)) return true;
+
+          // Check if title was recently confirmed (within last hour)
+          if (link.titleConfirmedAt) {
+            const confirmedAge = Date.now() - new Date(link.titleConfirmedAt).getTime();
+            const ONE_HOUR = 60 * 60 * 1000;
+            if (confirmedAge < ONE_HOUR) {
+              console.log('⏭️ fetchTitlesInBackground: Skipping recently confirmed link', {
+                id: link.id,
+                title: link.title,
+                confirmedAge: Math.round(confirmedAge / 1000) + 's ago'
+              });
+              return false;
+            }
+          }
+
+          // Check if the link was added very recently (within last 30 seconds)
+          // If so, assume the title was already fetched when the link was added
+          const linkAge = Date.now() - new Date(link.date_added).getTime();
+          const THIRTY_SECONDS = 30 * 1000;
+          if (linkAge < THIRTY_SECONDS) {
+            console.log('⏭️ fetchTitlesInBackground: Skipping very recent link', {
+              id: link.id,
+              title: link.title,
+              linkAge: Math.round(linkAge / 1000) + 's ago'
+            });
+            return false;
+          }
+
+          return true;
         });
 
         if (youtubeLinksWithoutTitles.length > 0) {
@@ -247,14 +293,21 @@ function HomeContent() {
             .from('links')
             .select('*')
             .in('id', linkIds);
-          
+
           if (!error && data) {
             setAllLinks(prevLinks => {
               const updatedLinks = [...prevLinks];
               data.forEach(updatedLink => {
                 const index = updatedLinks.findIndex(l => l.id === updatedLink.id);
                 if (index !== -1) {
-                  updatedLinks[index] = updatedLink;
+                  // Only update if the new title is valid and different from current
+                  const currentLink = updatedLinks[index];
+                  if (isValidTitle(updatedLink.title) && updatedLink.title !== currentLink.title) {
+                    updatedLinks[index] = {
+                      ...updatedLink,
+                      titleConfirmedAt: new Date().toISOString()
+                    };
+                  }
                 }
               });
               CacheManager.save(updatedLinks);
@@ -457,13 +510,61 @@ function HomeContent() {
   }, [newCombinationName, toast, fetchCombinations]);
 
   const handleNewLinkAdded = useCallback(async (newLink: Link) => {
+    console.log('🔄 handleNewLinkAdded: Processing new link', {
+      id: newLink.id,
+      url: newLink.url,
+      currentTitle: newLink.title,
+      dateAdded: newLink.date_added
+    });
+
+    // First, get the title
     const updatedTitle = await fetchAndStoreTitle(newLink);
-    if (updatedTitle) {
-      newLink.title = updatedTitle;
+    console.log('✅ handleNewLinkAdded: Got title for link', {
+      id: newLink.id,
+      originalTitle: newLink.title,
+      updatedTitle: updatedTitle
+    });
+
+    // Small delay to ensure DB update is complete
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Double-check: Fetch the link from DB to ensure we have the latest title
+    const { data: freshLink, error } = await supabase
+      .from('links')
+      .select('*')
+      .eq('id', newLink.id)
+      .single();
+
+    if (error) {
+      console.warn('⚠️ handleNewLinkAdded: Could not fetch fresh link from DB', error);
+      // Fall back to the title we got
+      const linkWithTitle = updatedTitle
+        ? { ...newLink, title: updatedTitle, titleConfirmedAt: new Date().toISOString() }
+        : { ...newLink, titleConfirmedAt: new Date().toISOString() };
+
+      setAllLinks(prevLinks => {
+        const updatedLinks = [linkWithTitle, ...prevLinks];
+        CacheManager.save(updatedLinks);
+        return updatedLinks;
+      });
+      return;
     }
-    
+
+    const finalTitle = freshLink.title || updatedTitle;
+    const linkWithTitle = {
+      ...freshLink,
+      title: finalTitle,
+      titleConfirmedAt: new Date().toISOString()
+    };
+
+    console.log('📝 handleNewLinkAdded: Adding link to state with final title', {
+      id: linkWithTitle.id,
+      finalTitle: linkWithTitle.title,
+      titleConfirmedAt: linkWithTitle.titleConfirmedAt
+    });
+
     setAllLinks(prevLinks => {
-      const updatedLinks = [newLink, ...prevLinks];
+      const updatedLinks = [linkWithTitle, ...prevLinks];
       CacheManager.save(updatedLinks);
       return updatedLinks;
     });

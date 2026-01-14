@@ -10,6 +10,7 @@ interface Link {
   type: string;
   username: string;
   date_added: string;
+  titleConfirmedAt?: string; // Timestamp when title was last confirmed
 }
 
 /**

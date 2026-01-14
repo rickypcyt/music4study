@@ -6,6 +6,7 @@ export interface Link {
   date_added: string;
   type: string;
   username: string;
+  titleConfirmedAt?: string; // Timestamp when title was last confirmed
 }
 
 export interface Combination {
