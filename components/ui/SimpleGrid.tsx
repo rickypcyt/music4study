@@ -33,12 +33,25 @@ function SimpleGridComponent<T>({
     );
   }
 
+  // Determine responsive grid classes based on columns prop
+  const getGridClasses = (columns: number) => {
+    switch (columns) {
+      case 1:
+        return 'grid-cols-1';
+      case 2:
+        return 'grid-cols-1 md:grid-cols-2';
+      case 3:
+        return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+      case 4:
+        return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4';
+      default:
+        return `grid-cols-1 md:grid-cols-2 lg:grid-cols-${Math.min(columns, 6)}`;
+    }
+  };
+
   return (
-    <div 
-      className={`grid gap-6 w-full ${className}`}
-      style={{
-        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-      }}
+    <div
+      className={`grid gap-6 w-full ${getGridClasses(columns)} ${className}`}
     >
       {items.map((item, index) => (
         <div key={index} className="w-full">
