@@ -11,15 +11,6 @@ import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 
-// Utility function to check if title is valid
-function isValidTitle(title: string | undefined | null): boolean {
-  if (!title || !title.trim()) return false;
-  // Don't consider URLs as valid titles
-  if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
-    return false;
-  }
-  return true;
-}
 
 interface Link {
   id: string;
