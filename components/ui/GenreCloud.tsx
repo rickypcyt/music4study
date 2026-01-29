@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
 import * as d3 from 'd3';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Tag {
   value: string;
@@ -28,158 +29,202 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
-  const lastUpdateRef = useRef<number>(0);
+  const nodesRef = useRef<Node[]>([]);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const width = window.innerWidth * 0.9;
-    const height = window.innerWidth < 640 ? 800 : 700; // Increased height for mobile
-    const padding = window.innerWidth < 640 ? 10 : 20;
-
-    // Convertir tags a nodos
-    const min = Math.min(...tags.map(t => t.count));
-    const max = Math.max(...tags.map(t => t.count));
+  // Memoizar dimensiones y configuración
+  const config = useMemo(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const width = typeof window !== 'undefined' ? window.innerWidth * 0.9 : 800;
+    const height = isMobile ? 800 : 700;
+    const padding = isMobile ? 10 : 20;
     
-    // Calcular el tamaño mínimo basado en el texto más largo y el ancho de la pantalla
+    return { width, height, padding, isMobile };
+  }, []);
+
+  // Memoizar escala de tamaños
+  const sizeScale = useMemo(() => {
+    if (tags.length === 0) return null;
+
+    const counts = tags.map(t => t.count);
+    const min = Math.min(...counts);
+    const max = Math.max(...counts);
     const maxTextLength = Math.max(...tags.map(t => t.value.length));
-    const minSize = window.innerWidth < 640 
-      ? Math.max(40, maxTextLength * 3) // Smaller bubbles on mobile
+    const minSize = config.isMobile 
+      ? Math.max(40, maxTextLength * 3)
       : Math.max(60, maxTextLength * 4);
     
-    const sizeScale = d3.scaleSqrt()
+    return d3.scaleSqrt()
       .domain([min, max])
-      .range([minSize, Math.max(minSize * 1.2, window.innerWidth < 640 ? 80 : 100)]);
+      .range([minSize, Math.max(minSize * 1.2, config.isMobile ? 80 : 100)]);
+  }, [tags, config.isMobile]);
 
-    const isValidPosition = (x: number, y: number, size: number, existingNodes: Node[]): boolean => {
-      if (x - size < 0 || x + size > width || y - size < 0 || y + size > height) {
+  // Función optimizada para validar posiciones
+  const isValidPosition = useCallback((
+    x: number, 
+    y: number, 
+    size: number, 
+    existingNodes: Node[]
+  ): boolean => {
+    const { width, height, padding } = config;
+    
+    // Verificar límites
+    if (x - size < 0 || x + size > width || y - size < 0 || y + size > height) {
+      return false;
+    }
+
+    // Verificar colisiones con nodos existentes
+    for (const node of existingNodes) {
+      const dx = x - node.x;
+      const dy = y - node.y;
+      const distanceSquared = dx * dx + dy * dy;
+      const requiredDistanceSquared = (size + node.size + padding) ** 2;
+      
+      if (distanceSquared < requiredDistanceSquared) {
         return false;
       }
+    }
+    
+    return true;
+  }, [config]);
 
-      return !existingNodes.some(node => {
-        const dx = x - node.x;
-        const dy = y - node.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        return distance < (size + node.size + padding);
-      });
-    };
-
-    const findValidPosition = (size: number, existingNodes: Node[]): { x: number; y: number } | null => {
-      const maxAttempts = 100;
-      for (let i = 0; i < maxAttempts; i++) {
-        const x = size + Math.random() * (width - 2 * size);
-        const y = size + Math.random() * (height - 2 * size);
-        if (isValidPosition(x, y, size, existingNodes)) {
-          return { x, y };
-        }
+  // Función para encontrar posición válida
+  const findValidPosition = useCallback((
+    size: number, 
+    existingNodes: Node[]
+  ): { x: number; y: number } | null => {
+    const { width, height } = config;
+    const maxAttempts = 100;
+    
+    for (let i = 0; i < maxAttempts; i++) {
+      const x = size + Math.random() * (width - 2 * size);
+      const y = size + Math.random() * (height - 2 * size);
+      
+      if (isValidPosition(x, y, size, existingNodes)) {
+        return { x, y };
       }
-      return null;
-    };
+    }
+    
+    return null;
+  }, [config, isValidPosition]);
 
-    const nodes: Node[] = [];
+  // Inicializar nodos
+  useEffect(() => {
+    if (!sizeScale || tags.length === 0) return;
+
+    const initialNodes: Node[] = [];
+    
     tags.forEach(tag => {
       const size = sizeScale(tag.count);
-      const position = findValidPosition(size, nodes);
+      const position = findValidPosition(size, initialNodes);
+      
       if (position) {
-        nodes.push({
+        initialNodes.push({
           id: tag.value,
           value: tag.count,
           size,
           x: position.x,
           y: position.y,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.5,
+          vx: (Math.random() - 0.5) * 0.8, // Velocidad inicial lenta para movimiento seamless
+          vy: (Math.random() - 0.5) * 0.8,
+          isHovered: false,
         });
       }
     });
 
-    setNodes(nodes);
+    nodesRef.current = initialNodes;
+    setNodes(initialNodes);
+  }, [tags, sizeScale, findValidPosition]);
 
-    // Función de animación
-    const animate = (timestamp: number) => {
-      if (!lastUpdateRef.current) lastUpdateRef.current = timestamp;
-      const deltaTime = timestamp - lastUpdateRef.current;
-      lastUpdateRef.current = timestamp;
+  // Animación optimizada con useCallback
+  const animate = useCallback(() => {
+    const { width, height, padding } = config;
+    const updatedNodes = nodesRef.current.map(node => {
+      // No mover burbujas en hover
+      if (node.isHovered) return node;
 
-      // Solo actualizar si ha pasado suficiente tiempo (control de FPS)
-      if (deltaTime >= 16) { // Aproximadamente 60 FPS
-        setNodes(prevNodes => {
-          return prevNodes.map(node => {
-            // Si la burbuja está en hover, no moverla
-            if (node.isHovered) {
-              return node;
-            }
+      let newX = node.x + node.vx;
+      let newY = node.y + node.vy;
+      let newVx = node.vx;
+      let newVy = node.vy;
 
-            // Actualizar posición con suavizado
-            let newX = node.x + node.vx;
-            let newY = node.y + node.vy;
-            let newVx = node.vx;
-            let newVy = node.vy;
-
-            // Colisión con bordes (con suavizado)
-            if (newX - node.size < 0 || newX + node.size > width) {
-              newVx = -newVx * 0.95;
-            }
-            if (newY - node.size < 0 || newY + node.size > height) {
-              newVy = -newVy * 0.95;
-            }
-
-            // Colisión con otras burbujas (optimizado)
-            for (const otherNode of prevNodes) {
-              if (otherNode.id !== node.id) {
-                const dx = newX - otherNode.x;
-                const dy = newY - otherNode.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const minDistance = node.size + otherNode.size + padding;
-
-                if (distance < minDistance) {
-                  // Vector normal
-                  const nx = dx / distance;
-                  const ny = dy / distance;
-
-                  // Velocidad relativa
-                  const dvx = node.vx - otherNode.vx;
-                  const dvy = node.vy - otherNode.vy;
-                  const speed = dvx * nx + dvy * ny;
-
-                  // Rebote con pérdida de energía
-                  if (speed < 0) {
-                    const bounce = speed * 0.95;
-                    newVx -= bounce * nx;
-                    newVy -= bounce * ny;
-                  }
-
-                  // Separación suave
-                  const overlap = (minDistance - distance) * 0.5;
-                  newX += nx * overlap;
-                  newY += ny * overlap;
-                }
-              }
-            }
-
-            // Asegurar que la burbuja no se salga de los límites
+          // Colisión con bordes con rebote muy suave
+          if (newX - node.size < 0 || newX + node.size > width) {
+            newVx = -newVx * 0.8; // Rebote más suave
             newX = Math.max(node.size, Math.min(width - node.size, newX));
+          }
+          if (newY - node.size < 0 || newY + node.size > height) {
+            newVy = -newVy * 0.8; // Rebote más suave
             newY = Math.max(node.size, Math.min(height - node.size, newY));
+          }
 
-            // Aplicar fricción
-            newVx *= 0.999;
-            newVy *= 0.999;
+      // Colisión entre burbujas (optimizado)
+      for (const otherNode of nodesRef.current) {
+        if (otherNode.id === node.id) continue;
 
-            return {
-              ...node,
-              x: newX,
-              y: newY,
-              vx: newVx,
-              vy: newVy
-            };
-          });
-        });
+        const dx = newX - otherNode.x;
+        const dy = newY - otherNode.y;
+        const distanceSquared = dx * dx + dy * dy;
+        const minDistance = node.size + otherNode.size + padding;
+        const minDistanceSquared = minDistance * minDistance;
+
+        if (distanceSquared < minDistanceSquared && distanceSquared > 0) {
+          const distance = Math.sqrt(distanceSquared);
+          const nx = dx / distance;
+          const ny = dy / distance;
+
+          // Velocidad relativa
+          const dvx = newVx - otherNode.vx;
+          const dvy = newVy - otherNode.vy;
+          const speed = dvx * nx + dvy * ny;
+
+          // Rebote muy suave entre burbujas
+          if (speed < 0) {
+            const bounce = speed * 0.7; // Más suave
+            newVx -= bounce * nx;
+            newVy -= bounce * ny;
+          }
+
+          // Separación muy suave
+          const overlap = (minDistance - distance) * 0.2; // Más suave
+          newX += nx * overlap;
+          newY += ny * overlap;
+        }
       }
 
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
+      // Aplicar límites finales
+      newX = Math.max(node.size, Math.min(width - node.size, newX));
+      newY = Math.max(node.size, Math.min(height - node.size, newY));
 
-    // Iniciar animación
+      // Fricción mínima para movimiento seamless y continuo
+      newVx *= 0.999;
+      newVy *= 0.999;
+
+      // Mantener velocidad mínima muy baja para movimiento lento y constante
+      const speed = Math.sqrt(newVx * newVx + newVy * newVy);
+      if (speed < 0.05) {
+        const angle = Math.random() * Math.PI * 2;
+        newVx = Math.cos(angle) * 0.1;
+        newVy = Math.sin(angle) * 0.1;
+      }
+
+      return {
+        ...node,
+        x: newX,
+        y: newY,
+        vx: newVx,
+        vy: newVy,
+      };
+    });
+
+    nodesRef.current = updatedNodes;
+    setNodes(updatedNodes);
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, [config]);
+
+  // Iniciar/detener animación
+  useEffect(() => {
+    if (nodes.length === 0) return;
+
     animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -187,15 +232,43 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
+  }, [nodes.length, animate]);
+
+  // Handlers de hover optimizados
+  const handleMouseEnter = useCallback((nodeId: string) => {
+    nodesRef.current = nodesRef.current.map(n => 
+      n.id === nodeId ? { ...n, isHovered: true } : n
+    );
+    setNodes([...nodesRef.current]);
+  }, []);
+
+  const handleMouseLeave = useCallback((nodeId: string) => {
+    nodesRef.current = nodesRef.current.map(n => 
+      n.id === nodeId ? { ...n, isHovered: false } : n
+    );
+    setNodes([...nodesRef.current]);
+  }, []);
+
+  // Calcular tamaño de fuente
+  const getFontSize = useCallback((count: number) => {
+    if (tags.length === 0) return 1;
+    
+    const counts = tags.map(t => t.count);
+    const min = Math.min(...counts);
+    const max = Math.max(...counts);
+    const range = max - min || 1;
+    const percentage = (count - min) / range;
+    
+    return 0.8 + percentage * 0.8;
   }, [tags]);
 
-  const getFontSize = (count: number) => {
-    const min = Math.min(...tags.map(t => t.count));
+  // Calcular opacidad
+  const getOpacity = useCallback((count: number) => {
+    if (tags.length === 0) return 0.9;
+    
     const max = Math.max(...tags.map(t => t.count));
-    const range = max - min;
-    const percentage = (count - min) / range;
-    return 0.8 + percentage * 0.8;
-  };
+    return 0.9 + (count / max) * 0.1;
+  }, [tags]);
 
   return (
     <div className="flex justify-center items-center w-full overflow-hidden">
@@ -208,38 +281,37 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
             <button
               key={node.id}
               className="
-                absolute rounded-full bg-[#e6e2d9]/20 
-                hover:bg-[#e6e2d9]/30 text-[#e6e2d9]
-                transition-all duration-300 ease-in-out
-                hover:scale-110 flex flex-col items-center justify-center
+                absolute rounded-full bg-[#e6e2d9]/15 
+                text-[#e6e2d9]
+                flex flex-col items-center justify-center
                 cursor-pointer text-center p-2
-                border border-[#e6e2d9]/10 shadow-lg
+                border border-[#e6e2d9]/20
+                shadow-lg
+                backdrop-blur-sm
+                transition-all duration-300 ease-out
+                hover:shadow-2xl hover:shadow-[#e6e2d9]/30
+                hover:bg-gradient-to-br hover:from-[#e6e2d9]/25 hover:to-[#e6e2d9]/15
+                hover:border-[#e6e2d9]/40
+                hover:scale-105
               "
               style={{ 
                 width: `${node.size * 2}px`,
                 height: `${node.size * 2}px`,
                 fontSize: `${getFontSize(node.value)}rem`,
-                opacity: 0.9 + (node.value / Math.max(...tags.map(t => t.count))) * 0.1,
+                opacity: getOpacity(node.value),
                 transform: `translate(${node.x - node.size}px, ${node.y - node.size}px)`,
+                willChange: 'transform',
               }}
-              onMouseEnter={() => {
-                setNodes(prevNodes => 
-                  prevNodes.map(n => 
-                    n.id === node.id ? { ...n, isHovered: true } : n
-                  )
-                );
-              }}
-              onMouseLeave={() => {
-                setNodes(prevNodes => 
-                  prevNodes.map(n => 
-                    n.id === node.id ? { ...n, isHovered: false } : n
-                  )
-                );
-              }}
+              onMouseEnter={() => handleMouseEnter(node.id)}
+              onMouseLeave={() => handleMouseLeave(node.id)}
               onClick={() => onGenreClick(node.id)}
             >
-              <span className="px-2 sm:px-4 text-sm sm:text-base font-bold">{node.id}</span>
-              <span className="text-xs opacity-70 mt-1">{node.value}</span>
+              <span className="px-2 sm:px-4 text-sm sm:text-base font-bold leading-tight">
+                {node.id}
+              </span>
+              <span className="text-xs opacity-70 mt-1">
+                {node.value}
+              </span>
             </button>
           ))}
         </div>

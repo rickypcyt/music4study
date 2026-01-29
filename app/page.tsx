@@ -3,18 +3,6 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitles';
-
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
-function isValidTitle(title: string | undefined | null): boolean {
-  if (!title || !title.trim()) return false;
-  // Don't consider URLs as valid titles
-  if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
-    return false;
-  }
-  return true;
-}
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +17,19 @@ import ViewTransition from '@/components/ui/ViewTransition';
 import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function isValidTitle(title: string | undefined | null): boolean {
+  if (!title || !title.trim()) return false;
+  // Don't consider URLs as valid titles
+  if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
+    return false;
+  }
+  return true;
+}
+
 
 // ============================================
 // CONSTANTS
@@ -217,11 +218,6 @@ function HomeContent() {
   // DATA FETCHING CALLBACKS
   // ============================================
   const fetchGenres = useCallback(async () => {
-    if (genresCacheRef.current.length > 0) {
-      setGenres(genresCacheRef.current);
-      return;
-    }
-
     try {
       const genresData = await getGenres();
       genresCacheRef.current = genresData;
