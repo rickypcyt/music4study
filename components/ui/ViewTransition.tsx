@@ -11,26 +11,26 @@ interface ViewTransitionProps {
 const containerVariants = {
   hidden: { 
     opacity: 0,
-    y: 12,
-    scale: 0.97
+    y: 8,
+    scale: 0.98
   },
   visible: { 
     opacity: 1,
     y: 0,
     scale: 1,
     transition: {
-      duration: 0.5,
-      ease: [0.25, 0.46, 0.45, 0.94] as const, // Smooth cubic-bezier for natural motion
-      staggerChildren: 0.04,
-      delayChildren: 0.08
+      duration: 0.15,
+      ease: [0.25, 0.46, 0.45, 0.94] as const,
+      staggerChildren: 0.02,
+      delayChildren: 0.02
     }
   },
   exit: {
     opacity: 0,
-    y: -12,
-    scale: 0.97,
+    y: -8,
+    scale: 0.98,
     transition: {
-      duration: 0.35,
+      duration: 0.1,
       ease: [0.25, 0.46, 0.45, 0.94] as const
     }
   }
@@ -39,15 +39,15 @@ const containerVariants = {
 const childVariants = {
   hidden: { 
     opacity: 0,
-    y: 12,
-    scale: 0.96
+    y: 6,
+    scale: 0.98
   },
   visible: { 
     opacity: 1,
     y: 0,
     scale: 1,
     transition: {
-      duration: 0.4,
+      duration: 0.2,
       ease: [0.25, 0.46, 0.45, 0.94] as const
     }
   }

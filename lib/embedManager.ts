@@ -70,7 +70,7 @@ class EmbedManager {
               src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1" 
               class="w-full h-full" 
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowfullscreen
+              allowFullScreen
               loading="lazy"
               importance="low"
             ></iframe>`;
@@ -82,6 +82,7 @@ class EmbedManager {
               src="https://open.spotify.com/embed/${spotifyId}" 
               class="w-full h-full" 
               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+              allowFullScreen
               loading="lazy"
               importance="low"
             ></iframe>`;
@@ -91,8 +92,9 @@ class EmbedManager {
               src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false" 
               class="w-full h-full" 
               scrolling="no" 
-              frameborder="no" 
+              frameBorder="no" 
               allow="autoplay"
+              allowFullScreen
               loading="lazy"
               importance="low"
             ></iframe>`;

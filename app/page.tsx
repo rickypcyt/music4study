@@ -202,15 +202,10 @@ function HomeContent() {
   // MEMOIZED VALUES
   // ============================================
   const filteredAndSortedLinks = useMemo(() => {
-    let filtered = allLinks;
-
-    // Filter by genre
-    if (selectedGenre) {
-      const normalized = normalizeGenre(selectedGenre);
-      filtered = allLinks.filter(link => normalizeGenre(link.genre) === normalized);
-    }
-
-    // Sort
+    if (!selectedGenre) return sortLinks(allLinks, currentSort);
+    
+    const normalized = normalizeGenre(selectedGenre);
+    const filtered = allLinks.filter(link => normalizeGenre(link.genre) === normalized);
     return sortLinks(filtered, currentSort);
   }, [allLinks, selectedGenre, currentSort]);
 
@@ -233,6 +228,8 @@ function HomeContent() {
   }, [toast]);
 
   const fetchTitlesInBackground = useCallback(async (links: Link[]) => {
+    if (links.length === 0) return;
+    
     const scheduleUpdate = (callback: () => void) => {
       if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
         requestIdleCallback(callback, { timeout: 2000 });
@@ -257,28 +254,13 @@ function HomeContent() {
           if (link.titleConfirmedAt) {
             const confirmedAge = Date.now() - new Date(link.titleConfirmedAt).getTime();
             const ONE_HOUR = 60 * 60 * 1000;
-            if (confirmedAge < ONE_HOUR) {
-              console.log('⏭️ fetchTitlesInBackground: Skipping recently confirmed link', {
-                id: link.id,
-                title: link.title,
-                confirmedAge: Math.round(confirmedAge / 1000) + 's ago'
-              });
-              return false;
-            }
+            if (confirmedAge < ONE_HOUR) return false;
           }
 
           // Check if the link was added very recently (within last 30 seconds)
-          // If so, assume the title was already fetched when the link was added
           const linkAge = Date.now() - new Date(link.date_added).getTime();
           const THIRTY_SECONDS = 30 * 1000;
-          if (linkAge < THIRTY_SECONDS) {
-            console.log('⏭️ fetchTitlesInBackground: Skipping very recent link', {
-              id: link.id,
-              title: link.title,
-              linkAge: Math.round(linkAge / 1000) + 's ago'
-            });
-            return false;
-          }
+          if (linkAge < THIRTY_SECONDS) return false;
 
           return true;
         });
@@ -506,20 +488,8 @@ function HomeContent() {
   }, [newCombinationName, toast, fetchCombinations]);
 
   const handleNewLinkAdded = useCallback(async (newLink: Link) => {
-    console.log('🔄 handleNewLinkAdded: Processing new link', {
-      id: newLink.id,
-      url: newLink.url,
-      currentTitle: newLink.title,
-      dateAdded: newLink.date_added
-    });
-
     // First, get the title
     const updatedTitle = await fetchAndStoreTitle(newLink);
-    console.log('✅ handleNewLinkAdded: Got title for link', {
-      id: newLink.id,
-      originalTitle: newLink.title,
-      updatedTitle: updatedTitle
-    });
 
     // Small delay to ensure DB update is complete
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -532,7 +502,6 @@ function HomeContent() {
       .single();
 
     if (error) {
-      console.warn('⚠️ handleNewLinkAdded: Could not fetch fresh link from DB', error);
       // Fall back to the title we got
       const linkWithTitle = updatedTitle
         ? { ...newLink, title: updatedTitle, titleConfirmedAt: new Date().toISOString() }
@@ -552,12 +521,6 @@ function HomeContent() {
       title: finalTitle,
       titleConfirmedAt: new Date().toISOString()
     };
-
-    console.log('📝 handleNewLinkAdded: Adding link to state with final title', {
-      id: linkWithTitle.id,
-      finalTitle: linkWithTitle.title,
-      titleConfirmedAt: linkWithTitle.titleConfirmedAt
-    });
 
     setAllLinks(prevLinks => {
       const updatedLinks = [linkWithTitle, ...prevLinks];
@@ -606,10 +569,10 @@ function HomeContent() {
 
   // Fetch combinations when in combinations view
   useEffect(() => {
-    if (currentView === 'combinations') {
+    if (currentView === 'combinations' && combinations.length === 0) {
       fetchCombinations();
     }
-  }, [currentView, fetchCombinations]);
+  }, [currentView, fetchCombinations, combinations.length]);
 
   // ============================================
   // RENDER

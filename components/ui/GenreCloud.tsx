@@ -91,9 +91,9 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
   const findValidPosition = useCallback((
     size: number, 
     existingNodes: Node[]
-  ): { x: number; y: number } | null => {
+  ): { x: number; y: number } => {
     const { width, height } = config;
-    const maxAttempts = 100;
+    const maxAttempts = 500; // Aumentar intentos
     
     for (let i = 0; i < maxAttempts; i++) {
       const x = size + Math.random() * (width - 2 * size);
@@ -104,7 +104,11 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
       }
     }
     
-    return null;
+    // Si no encuentra posición válida, colocar en una posición forzada
+    // Esto asegura que todos los géneros se muestren
+    const fallbackX = size + Math.random() * (width - 2 * size);
+    const fallbackY = size + Math.random() * (height - 2 * size);
+    return { x: fallbackX, y: fallbackY };
   }, [config, isValidPosition]);
 
   // Inicializar nodos
@@ -117,18 +121,17 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
       const size = sizeScale(tag.count);
       const position = findValidPosition(size, initialNodes);
       
-      if (position) {
-        initialNodes.push({
-          id: tag.value,
-          value: tag.count,
-          size,
-          x: position.x,
-          y: position.y,
-          vx: (Math.random() - 0.5) * 0.8, // Velocidad inicial lenta para movimiento seamless
-          vy: (Math.random() - 0.5) * 0.8,
-          isHovered: false,
-        });
-      }
+      // findValidPosition ahora siempre devuelve una posición
+      initialNodes.push({
+        id: tag.value,
+        value: tag.count,
+        size,
+        x: position.x,
+        y: position.y,
+        vx: (Math.random() - 0.5) * 0.8, // Velocidad inicial lenta para movimiento seamless
+        vy: (Math.random() - 0.5) * 0.8,
+        isHovered: false,
+      });
     });
 
     nodesRef.current = initialNodes;
@@ -289,10 +292,7 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
                 shadow-lg
                 backdrop-blur-sm
                 transition-all duration-300 ease-out
-                hover:shadow-2xl hover:shadow-[#e6e2d9]/30
-                hover:bg-gradient-to-br hover:from-[#e6e2d9]/25 hover:to-[#e6e2d9]/15
-                hover:border-[#e6e2d9]/40
-                hover:scale-105
+                hover:bg-[#e6e2d9]/25
               "
               style={{ 
                 width: `${node.size * 2}px`,

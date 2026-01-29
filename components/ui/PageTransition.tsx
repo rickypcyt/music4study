@@ -20,9 +20,9 @@ export default function PageTransition({ children }: PageTransitionProps) {
         exit={{ opacity: 0, y: -20 }}
         transition={{
           type: "spring",
-          stiffness: 260,
-          damping: 20,
-          duration: 0.2
+          stiffness: 300,
+          damping: 25,
+          duration: 0.15
         }}
         className="w-full"
       >

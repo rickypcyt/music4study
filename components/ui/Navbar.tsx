@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Home, Layers, Tags, Menu, X } from 'lucide-react';
+import { ArrowUpDown, Home, Layers, Menu, Tags, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -53,7 +53,7 @@ export default function Navbar({
     router.replace(view === 'home' ? '/' : `/?${params.toString()}`, { scroll: false });
     callback();
     // Shorter timeout for more responsive feel
-    setTimeout(() => setIsNavigating(false), 150);
+    setTimeout(() => setIsNavigating(false), 50);
   }, [router]);
 
   // Close mobile menu when clicking outside
