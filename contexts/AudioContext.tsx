@@ -1,5 +1,14 @@
 'use client';
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+
+/** Minimal interface for the YouTube player instance (from YT.Player) */
+export interface YouTubePlayerHandle {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  stopVideo: () => void;
+  loadVideoById: (videoId: string) => void;
+  getVideoData: () => { video_id: string };
+}
 
 interface AudioState {
   isPlaying: boolean;
@@ -7,6 +16,7 @@ interface AudioState {
   volume: number;
   isMuted: boolean;
   iframeOwner: string | null;
+  playerState: number; // YouTube player state (unstarted, ended, playing, paused, buffering, cued)
 }
 
 interface AudioContextType extends AudioState {
@@ -18,9 +28,12 @@ interface AudioContextType extends AudioState {
   unMute: () => void;
   getCurrentTime: () => number;
   getDuration: () => number;
-  // Nuevo: control del iframe global
   iframeOwner: string | null;
   setIframeOwner: (ownerId: string | null) => void;
+  /** Register the real YT player so play/pause/stop control it and state stays in sync */
+  registerPlayer: (player: YouTubePlayerHandle | null, onStateChange?: (isPlaying: boolean) => void) => void;
+  /** Called by the YT player onStateChange to keep isPlaying in sync */
+  syncPlaying: (isPlaying: boolean) => void;
 }
 
 const AUDIO_STORAGE_KEY = 'music4study_audio_state';
@@ -29,7 +42,7 @@ const AudioContext = createContext<AudioContextType | null>(null);
 
 const getStoredAudioState = (): AudioState => {
   if (typeof window === 'undefined') {
-    return { isPlaying: false, currentVideoId: null, volume: 70, isMuted: false, iframeOwner: null };
+    return { isPlaying: false, currentVideoId: null, volume: 70, isMuted: false, iframeOwner: null, playerState: -1 };
   }
 
   try {
@@ -42,13 +55,14 @@ const getStoredAudioState = (): AudioState => {
         volume: parsed.volume !== undefined ? parsed.volume : 70,
         isMuted: parsed.isMuted || false,
         iframeOwner: parsed.iframeOwner || null,
+        playerState: parsed.playerState !== undefined ? parsed.playerState : -1,
       };
     }
   } catch (error) {
     console.warn('Error reading audio state from localStorage:', error);
   }
 
-  return { isPlaying: false, currentVideoId: null, volume: 70, isMuted: false, iframeOwner: null };
+  return { isPlaying: false, currentVideoId: null, volume: 70, isMuted: false, iframeOwner: null, playerState: -1 };
 };
 
 const saveAudioState = (state: AudioState) => {
@@ -63,22 +77,57 @@ const saveAudioState = (state: AudioState) => {
 
 export function AudioProvider({ children }: { children: ReactNode }) {
   const [audioState, setAudioState] = useState<AudioState>(getStoredAudioState);
+  const playerRef = useRef<YouTubePlayerHandle | null>(null);
+  const onStateChangeRef = useRef<((isPlaying: boolean) => void) | null>(null);
 
   // Save to localStorage whenever state changes
   useEffect(() => {
     saveAudioState(audioState);
   }, [audioState]);
 
+  const registerPlayer = useCallback((player: YouTubePlayerHandle | null, onStateChange?: (isPlaying: boolean) => void) => {
+    playerRef.current = player;
+    onStateChangeRef.current = onStateChange ?? null;
+  }, []);
+
+  const syncPlaying = useCallback((isPlaying: boolean) => {
+    setAudioState(prev => ({ ...prev, isPlaying }));
+  }, []);
+
   const playVideo = useCallback((videoId: string) => {
     setAudioState(prev => ({ ...prev, currentVideoId: videoId, isPlaying: true }));
+    const p = playerRef.current;
+    if (p) {
+      try {
+        const currentId = p.getVideoData?.()?.video_id;
+        if (currentId === videoId) {
+          p.playVideo();
+        } else {
+          p.loadVideoById(videoId);
+          p.playVideo();
+        }
+      } catch {
+        // Player not ready yet
+      }
+    }
   }, []);
 
   const pauseVideo = useCallback(() => {
     setAudioState(prev => ({ ...prev, isPlaying: false }));
+    try {
+      playerRef.current?.pauseVideo();
+    } catch {
+      // ignore
+    }
   }, []);
 
   const stopVideo = useCallback(() => {
     setAudioState(prev => ({ ...prev, currentVideoId: null, isPlaying: false }));
+    try {
+      playerRef.current?.stopVideo();
+    } catch {
+      // ignore
+    }
   }, []);
 
   const setVolume = useCallback((volume: number) => {
@@ -120,7 +169,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       unMute,
       getCurrentTime,
       getDuration,
-      setIframeOwner
+      setIframeOwner,
+      registerPlayer,
+      syncPlaying
     }}>
       {children}
     </AudioContext.Provider>
@@ -138,6 +189,7 @@ export const useAudio = () => {
       volume: 70,
       isMuted: false,
       iframeOwner: null,
+      playerState: -1,
       playVideo: () => {},
       pauseVideo: () => {},
       stopVideo: () => {},
@@ -146,7 +198,9 @@ export const useAudio = () => {
       unMute: () => {},
       getCurrentTime: () => 0,
       getDuration: () => 0,
-      setIframeOwner: () => {}
+      setIframeOwner: () => {},
+      registerPlayer: () => {},
+      syncPlaying: () => {}
     };
   }
 

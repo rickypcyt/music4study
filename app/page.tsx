@@ -1,7 +1,7 @@
 'use client';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitles';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -228,7 +228,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(effectiveSearchParams));
   const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
   const [currentPage, setCurrentPage] = useState(() => getInitialPage(effectiveSearchParams));
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Refs
   const isInitialLoadRef = useRef(true);
@@ -273,7 +272,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
   // Mark initial load as complete after first render
   useEffect(() => {
-    setIsInitialLoad(false);
+    isInitialLoadRef.current = false;
   }, []);
 
   // Validate current page is within bounds (only after data is loaded)
@@ -718,17 +717,18 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     }
   }, [searchParams]);
 
-  // Update current page from URL search params
+  // Update current page from URL search params (sync from URL only; omit currentPage to avoid extra runs)
   useEffect(() => {
     const pageFromUrl = effectiveSearchParams.get('page');
     if (pageFromUrl && !isNaN(Number(pageFromUrl)) && Number(pageFromUrl) > 0) {
       const newPage = Number(pageFromUrl);
-      if (newPage !== currentPage) {
-        setCurrentPage(newPage);
+      setCurrentPage((prev) => {
+        if (prev === newPage) return prev;
         if (typeof window !== 'undefined') {
           localStorage.setItem('currentPage', newPage.toString());
         }
-      }
+        return newPage;
+      });
     }
   }, [effectiveSearchParams]);
 
@@ -870,6 +870,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                     onPageChange={handlePageChange}
                     onPreviousPage={handlePreviousPage}
                     onNextPage={handleNextPage}
+                    showCurrentlyPlaying={true}
                   />
                 </>
               )}
@@ -978,13 +979,14 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 }
 
 interface PageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default function Home({ searchParams }: PageProps) {
+  const params = use(searchParams);
   return (
     <Suspense fallback={<LoadingCards />}>
-      <HomeContent searchParams={searchParams} />
+      <HomeContent searchParams={params} />
     </Suspense>
   );
 }

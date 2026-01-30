@@ -1,12 +1,12 @@
 'use client';
 
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
 import { useAudio } from '@/contexts/AudioContext';
+import { useIframeTarget } from '@/contexts/IframeTargetContext';
 import { youtubeCache } from '@/lib/youtubeCache';
-import GlobalYouTubePlayer from './BackgroundPlayer';
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -41,8 +41,34 @@ export default function LazyYouTubeEmbed({
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   
   const { isPlaying, currentVideoId, playVideo, iframeOwner, setIframeOwner } = useAudio();
+  const { registerTarget, unregisterTarget } = useIframeTarget();
   const shouldPlay = Boolean(isPlaying && currentVideoId && currentVideoId === videoId);
   const isOwner = iframeOwner === linkId;
+  const isOwnerRef = useRef(false);
+  const slotRef = useRef<HTMLDivElement>(null);
+
+  // Keep ref in sync so cleanup on unmount knows if we owned the iframe
+  useEffect(() => {
+    isOwnerRef.current = isOwner;
+  }, [isOwner]);
+
+  // Al desmontar (ej. al cambiar de página), liberar posesión; el iframe único
+  // sigue en el DOM (portaled al slot global) y no se pausa
+  useEffect(() => {
+    return () => {
+      if (isOwnerRef.current) {
+        setIframeOwner(null);
+      }
+    };
+  }, [setIframeOwner]);
+
+  // Registrar este slot para que el iframe único se portal aquí cuando somos owner
+  useEffect(() => {
+    if (!isLoaded) return;
+    const el = slotRef.current;
+    if (el) registerTarget(linkId, el);
+    return () => unregisterTarget(linkId);
+  }, [isLoaded, linkId, registerTarget, unregisterTarget]);
   
   // Reset state when linkId changes (new page or different video)
   // But don't reset isLoaded if this video should be playing
@@ -228,11 +254,6 @@ export default function LazyYouTubeEmbed({
     }
   }, [isOwner, shouldPlay, isLoaded]);
 
-  const handleIframeError = () => {
-    setIsBlocked(true);
-    setLoadError(true);
-  };
-
   // Persist last played timestamp per linkId in localStorage
   const recordLastPlayed = () => {
     try {
@@ -358,12 +379,8 @@ export default function LazyYouTubeEmbed({
           </div>
         </div>
       ) : (
-        // Mostrar el iframe global cuando este componente tiene posesión
-        <GlobalYouTubePlayer
-          ownerId={linkId}
-          className="absolute inset-0 w-full h-full"
-          style={{}}
-        />
+        // Slot: el iframe único (en ClientProvider) se portal aquí cuando somos owner
+        <div ref={slotRef} className="absolute inset-0 w-full h-full" />
       )}
       </div>
     </div>
