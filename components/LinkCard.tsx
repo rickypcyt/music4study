@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
+import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
 
 interface Link {
   id: string;
@@ -55,6 +56,7 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
   const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
+  const { isPlaying } = useVideoPlayer();
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -232,9 +234,16 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
     ? (isValidTitle(link.title) ? link.title : (youtubeTitle || ''))
     : link.title;
   
+  const isCurrentlyPlaying = isPlaying(link.id);
+
   return (
     <>
-      <Card className="overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300 min-h-[400px] flex flex-col" ref={cardRef}>
+      <Card
+        className={`overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300 min-h-[400px] flex flex-col ${
+          isCurrentlyPlaying ? '!border-2 !border-primary/80' : ''
+        }`}
+        ref={cardRef}
+      >
         <CardContent className="p-2 flex flex-col flex-1">
           {(isSpotify || isYouTube || isSoundCloud) ? (
             <div className="w-full">

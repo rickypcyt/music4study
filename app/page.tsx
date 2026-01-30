@@ -657,11 +657,45 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   // ============================================
   // EFFECTS
   // ============================================
-  
+
+  // Keyboard navigation for pagination
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Handle numeric keys 1-5 for direct page navigation
+      const key = parseInt(event.key);
+      if (key >= 1 && key <= 5 && key <= totalPages) {
+        event.preventDefault();
+        handlePageChange(key);
+        return;
+      }
+
+      // Handle arrow keys for previous/next navigation
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        handlePreviousPage();
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        handleNextPage();
+        return;
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('keydown', handleKeyPress);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [totalPages, handlePageChange, handlePreviousPage, handleNextPage]);
+
   // Initial data fetch
   useEffect(() => {
     if (!isInitialLoadRef.current) return;
-    
+
     isInitialLoadRef.current = false;
     setError(null);
     fetchLinksData(true);

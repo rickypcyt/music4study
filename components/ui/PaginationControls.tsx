@@ -51,12 +51,12 @@ export default function PaginationControls({
           {getVisiblePages().map((page) => (
             <Button
               key={page}
-              variant={page === currentPage ? "default" : "outline"}
+              variant="outline"
               size="sm"
               onClick={() => onPageChange(page)}
               className={
                 page === currentPage
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                  ? "!bg-primary !hover:bg-primary/90 !text-primary-foreground !border-primary/50"
                   : "bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20"
               }
             >
