@@ -231,6 +231,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
   // Refs
   const isInitialLoadRef = useRef(true);
+  const hasInitialFetchRunRef = useRef(false);
   const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
 
   const selectedGenre = searchParams.get('genre');
@@ -269,11 +270,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       window.history.replaceState({}, '', url);
     }
   }, [selectedGenre, currentSort]);
-
-  // Mark initial load as complete after first render
-  useEffect(() => {
-    isInitialLoadRef.current = false;
-  }, []);
 
   // Validate current page is within bounds (only after data is loaded)
   useEffect(() => {
@@ -691,13 +687,13 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     };
   }, [totalPages, handlePageChange, handlePreviousPage, handleNextPage]);
 
-  // Initial data fetch
+  // Initial data fetch (run once on mount; use dedicated ref so effect order cannot skip it)
   useEffect(() => {
-    if (!isInitialLoadRef.current) return;
-
-    isInitialLoadRef.current = false;
+    if (hasInitialFetchRunRef.current) return;
+    hasInitialFetchRunRef.current = true;
     setError(null);
     fetchLinksData(true);
+    isInitialLoadRef.current = false;
   }, [fetchLinksData]);
 
   // Fetch genres on mount
