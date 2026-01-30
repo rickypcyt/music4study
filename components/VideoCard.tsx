@@ -1,8 +1,10 @@
 'use client';
-import { useAudio } from '@/contexts/AudioContext';
+
 import { useEffect, useState } from 'react';
-import { extractYouTubeId } from './embeds/LazyYouTubeEmbed';
+
 import Image from 'next/image';
+import { extractYouTubeId } from './embeds/LazyYouTubeEmbed';
+import { useAudio } from '@/contexts/AudioContext';
 
 interface VideoCardProps {
   videoId: string;
