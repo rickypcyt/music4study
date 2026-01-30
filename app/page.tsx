@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
+import PasswordDialog from '@/components/ui/PasswordDialog';
 import SimpleGrid from '@/components/ui/SimpleGrid';
 import SubmitForm from './submit/SubmitForm';
 import ViewTransition from '@/components/ui/ViewTransition';
@@ -185,6 +186,7 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
@@ -537,6 +539,10 @@ function HomeContent() {
     });
   }, [toast]);
 
+  const handleSubmitClick = useCallback(() => {
+    setIsPasswordDialogOpen(true);
+  }, []);
+
   // ============================================
   // EFFECTS
   // ============================================
@@ -601,7 +607,7 @@ function HomeContent() {
         currentView={currentView}
         onGenresClick={handleGenresClick}
         onHomeClick={handleHomeClick}
-        onSubmitClick={() => setIsSubmitModalOpen(true)}
+        onSubmitClick={handleSubmitClick}
         onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
@@ -791,6 +797,13 @@ function HomeContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Password Dialog */}
+      <PasswordDialog
+        isOpen={isPasswordDialogOpen}
+        onClose={() => setIsPasswordDialogOpen(false)}
+        onSuccess={() => setIsSubmitModalOpen(true)}
+      />
     </div>
   );
 }
