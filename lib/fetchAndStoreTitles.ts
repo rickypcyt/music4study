@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
 import { extractYouTubeId } from '@/components/embeds/LazyYouTubeEmbed';
+import { supabase } from '@/lib/supabase';
 import { youtubeCache } from '@/lib/youtubeCache';
 
 interface Link {
@@ -124,7 +124,7 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
               } else {
                 // Successfully saved to Supabase
                 if (process.env.NODE_ENV === 'development') {
-                  console.log(`✓ Saved cached title to Supabase for video ${videoId}: "${validatedTitle.substring(0, 50)}..."`);
+                  console.log(`✓ Saved cached title to Supabase`);
                 }
               }
               return { error: error as unknown, data: data as unknown };
@@ -223,6 +223,11 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
       // Continue with next batch even if this one fails
     }
   }
+  
+  // Log total cached titles
+  if (process.env.NODE_ENV === 'development' && linksNeedingTitles.length > 0) {
+    console.log(`✓ Processed ${linksNeedingTitles.length} cached titles`);
+  }
 }
 
 /**
@@ -267,7 +272,7 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
         } else {
           // Successfully saved to Supabase
           if (process.env.NODE_ENV === 'development') {
-            console.log(`✓ Saved cached title to Supabase for video ${videoId}: "${validatedTitle.substring(0, 50)}..."`);
+            console.log(`✓ Saved cached title to Supabase`);
           }
         }
       }
@@ -318,11 +323,10 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
           error.hint || '',
           `Title: "${validatedTitle.substring(0, 50)}..."`
         );
-        // Still return the title even if DB update fails
       } else {
         // Successfully saved to Supabase
         if (process.env.NODE_ENV === 'development') {
-          console.log(`✓ Saved title to Supabase for video ${videoId}: "${validatedTitle.substring(0, 50)}..."`);
+          console.log(`✓ Saved title to Supabase`);
         }
       }
 

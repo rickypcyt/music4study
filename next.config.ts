@@ -1,13 +1,14 @@
 import type { NextConfig } from "next";
 
 // Configuración del Bundle Analyzer
-const withBundleAnalyzer = (config: NextConfig) => {
+const withBundleAnalyzer = async (config: NextConfig) => {
   try {
-    const withBundleAnalyzerPkg = require('@next/bundle-analyzer')({
+    const withBundleAnalyzerPkg = (await import('@next/bundle-analyzer')).default({
       enabled: process.env.ANALYZE === 'true',
     });
     return withBundleAnalyzerPkg(config);
-  } catch (e) {
+  } catch {
+    // Ignorar el error, solo mostrar advertencia
     console.warn('@next/bundle-analyzer no está instalado. Ejecuta: pnpm add -D @next/bundle-analyzer');
     return config;
   }
@@ -17,6 +18,41 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  // Configuración experimental combinada
+  experimental: {
+    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node'],
+    optimizePackageImports: [
+      '@radix-ui/react-icons',
+      'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      'framer-motion',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-toast'
+    ],
+    turbo: {
+      rules: {
+        '*.{ts,tsx}': [
+          {
+            loader: 'tsx',
+            options: {
+              fastRefresh: true,
+            },
+          },
+        ],
+      },
+    },
+  },
+  // Configuración para rutas de API
+  api: {
+    bodyParser: {
+      sizeLimit: '4mb',
+    },
+  },
+  // Deshabilitar la generación estática para rutas específicas
+  generateBuildId: async () => 'build-' + Date.now(),
   images: {
     domains: [
       'i.scdn.co',
@@ -75,31 +111,6 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
-  },
-  experimental: {
-    optimizePackageImports: [
-      '@radix-ui/react-icons',
-      'lucide-react',
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu',
-      'framer-motion',
-      '@radix-ui/react-popover',
-      '@radix-ui/react-select',
-      '@radix-ui/react-slot',
-      '@radix-ui/react-toast'
-    ],
-    turbo: {
-      rules: {
-        '*.{ts,tsx}': [
-          {
-            loader: 'tsx',
-            options: {
-              fastRefresh: true,
-            },
-          },
-        ],
-      },
-    },
   },
   webpack: (config, { dev }) => {
     // Enable tree shaking and dead code elimination

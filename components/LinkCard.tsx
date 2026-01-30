@@ -2,15 +2,14 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useCallback, useEffect, useRef, useState, memo } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CachedEmbed from './embeds/CachedEmbed';
 import { Plus } from "lucide-react";
+import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
-import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
-
 
 interface Link {
   id: string;
@@ -107,18 +106,11 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
 
     // Only fetch if: YouTube AND needs title AND not already fetched
     if (isYouTube && needsTitleFetch) {
-      console.log('🔄 LinkCard: Fetching title for link', {
-        id: link.id,
-        url: link.url,
-        currentTitle: link.title
-      });
+      console.log('🔄 LinkCard: Fetching title');
 
       fetchAndStoreTitle(link).then((fetchedTitle) => {
         if (!cancelled && fetchedTitle) {
-          console.log('✅ LinkCard: Got title for link', {
-            id: link.id,
-            fetchedTitle: fetchedTitle
-          });
+          console.log('✅ LinkCard: Got title');
           setYoutubeTitle(fetchedTitle);
         }
       }).catch(err => {
@@ -284,31 +276,40 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
           <div className="p-4 space-y-3 flex flex-col flex-1">
             {/* Show title for all videos, including YouTube */}
             {displayTitle && displayTitle.trim() && (
-              <h3 className="text-lg text-[#e6e2d9] line-clamp-2 flex-1 flex items-center font-semibold">
-                {displayTitle}
-              </h3>
+              <div className="flex-shrink-0">
+                <h3 className="text-lg text-[#e6e2d9] line-clamp-2 leading-tight font-semibold">
+                  {displayTitle}
+                </h3>
+              </div>
             )}
-            <div className="flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10 mt-auto">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 text-[#e6e2d9] hover:text-indigo-400 transition-all duration-200"
-                  onClick={() => setIsAddModalOpen(true)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
+            
+            {/* Spacer that pushes footer to bottom */}
+            <div className="flex-1 min-h-0"></div>
+            
+            {/* Footer - always at bottom */}
+            <div className="flex-shrink-0 flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10">
+              <div className="flex flex-col items-start">
+                <span className="text-sm text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
+                <span className="text-sm text-[#e6e2d9]/70">by {link.username}</span>
+              </div>
+              <div className="flex items-center gap-3">
                 <div className="flex items-center space-x-2">
-                  <span className="px-2 py-1 text-xs font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
+                  <span className="px-3 py-1 text-sm font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
                     {link.genre}
                   </span>
-                  <span className="px-2 py-1 text-xs font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
+                  <span className="px-3 py-1 text-sm font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
                     {link.type}
                   </span>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 bg-[#e6e2d9]/10 hover:bg-[#e6e2d9]/20 text-[#e6e2d9] hover:text-indigo-400 transition-all duration-200"
+                  onClick={() => setIsAddModalOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
               </div>
-              <span className="text-xs text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
-              <span className="text-xs text-[#e6e2d9]/70">by {link.username}</span>
             </div>
           </div>
         </CardContent>
@@ -385,13 +386,16 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
   );
 }
 
-// Memoize to prevent unnecessary re-renders
+// Memoize to prevent unnecessary re-renders but allow remounting
 export default memo(LinkCard, (prevProps, nextProps) => {
-  // Only re-render if link data actually changed
+  // Only prevent re-render if absolutely identical data
   return (
     prevProps.link.id === nextProps.link.id &&
     prevProps.link.title === nextProps.link.title &&
     prevProps.link.url === nextProps.link.url &&
-    prevProps.index === nextProps.index
+    prevProps.link.genre === nextProps.link.genre &&
+    prevProps.link.type === nextProps.link.type &&
+    prevProps.link.username === nextProps.link.username &&
+    prevProps.link.date_added === nextProps.link.date_added
   );
 }); 

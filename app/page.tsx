@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
+import PaginationControls from '@/components/ui/PaginationControls';
 import PasswordDialog from '@/components/ui/PasswordDialog';
 import SimpleGrid from '@/components/ui/SimpleGrid';
 import SubmitForm from './submit/SubmitForm';
@@ -39,6 +40,7 @@ const MAX_CACHE_SIZE = 1000;
 const CACHE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const CACHE_KEY = 'music4study_links_cache';
+const CARDS_PER_PAGE = 8;
 
 // ============================================
 // TYPES
@@ -67,6 +69,8 @@ interface CombinationWithLinks extends Combination {
 interface LinksCache {
   links: Link[];
   lastUpdated: string;
+  currentPage: number;
+  totalPages: number;
 }
 
 type ViewType = 'home' | 'genres' | 'combinations';
@@ -76,21 +80,25 @@ type SortType = 'date' | 'genre' | 'username';
 // CACHE UTILITIES
 // ============================================
 const CacheManager = {
-  save: (links: Link[]): void => {
+  save: (links: Link[], currentPage: number = 1, totalPages: number = 1): void => {
     if (typeof window === 'undefined') return;
     
     try {
       const limitedLinks = links.slice(0, MAX_CACHE_SIZE);
       const cache: LinksCache = {
         links: limitedLinks,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        currentPage,
+        totalPages
       };
       const cacheString = JSON.stringify(cache);
       
       if (cacheString.length > MAX_STORAGE_SIZE) {
         const smallerCache: LinksCache = {
           links: links.slice(0, 500),
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          currentPage,
+          totalPages
         };
         localStorage.setItem(CACHE_KEY, JSON.stringify(smallerCache));
       } else {
@@ -148,6 +156,14 @@ const getInitialSort = (searchParams: URLSearchParams): SortType => {
   return (searchParams.get('sort') as SortType) || 'date';
 };
 
+const getInitialPage = (): number => {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('currentPage');
+    return stored ? parseInt(stored, 10) : 1;
+  }
+  return 1;
+};
+
 const getInitialTheme = (): string => {
   if (typeof window !== 'undefined') {
     return localStorage.getItem('theme') || 'coffee';
@@ -193,6 +209,8 @@ function HomeContent() {
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
   const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(searchParams));
   const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
+  const [currentPage, setCurrentPage] = useState(() => getInitialPage());
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Refs
   const isInitialLoadRef = useRef(true);
@@ -210,6 +228,41 @@ function HomeContent() {
     const filtered = allLinks.filter(link => normalizeGenre(link.genre) === normalized);
     return sortLinks(filtered, currentSort);
   }, [allLinks, selectedGenre, currentSort]);
+
+  const paginatedLinks = useMemo(() => {
+    const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
+    const endIndex = startIndex + CARDS_PER_PAGE;
+    return filteredAndSortedLinks.slice(startIndex, endIndex);
+  }, [filteredAndSortedLinks, currentPage]);
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredAndSortedLinks.length / CARDS_PER_PAGE);
+  }, [filteredAndSortedLinks.length]);
+
+  // Reset page when filters change (but not on initial load)
+  useEffect(() => {
+    if (!isInitialLoad) {
+      setCurrentPage(1);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentPage', '1');
+      }
+    }
+  }, [selectedGenre, currentSort, isInitialLoad]);
+
+  // Mark initial load as complete after first render
+  useEffect(() => {
+    setIsInitialLoad(false);
+  }, []);
+
+  // Validate current page is within bounds
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentPage', '1');
+      }
+    }
+  }, [totalPages, currentPage]);
 
   // ============================================
   // DATA FETCHING CALLBACKS
@@ -290,7 +343,8 @@ function HomeContent() {
                   }
                 }
               });
-              CacheManager.save(updatedLinks);
+              const calculatedTotalPages = Math.ceil(updatedLinks.length / CARDS_PER_PAGE);
+              CacheManager.save(updatedLinks, currentPage, calculatedTotalPages);
               return updatedLinks;
             });
           }
@@ -299,7 +353,7 @@ function HomeContent() {
         console.error('Error fetching titles in background:', err);
       }
     });
-  }, []);
+  }, [currentPage]);
 
   const fetchLinksData = useCallback(async (useCache: boolean = true) => {
     try {
@@ -308,6 +362,7 @@ function HomeContent() {
         const cachedData = CacheManager.get();
         if (cachedData?.links) {
           setAllLinks(cachedData.links);
+          // Don't restore page from cache - localStorage has priority
           setLoading(false);
           // Fetch fresh data in background
           fetchLinksData(false);
@@ -324,7 +379,8 @@ function HomeContent() {
       
       if (data) {
         setAllLinks(data);
-        CacheManager.save(data);
+        const calculatedTotalPages = Math.ceil(data.length / CARDS_PER_PAGE);
+        CacheManager.save(data, currentPage, calculatedTotalPages);
         
         if (data.length > 0) {
           fetchTitlesInBackground(data);
@@ -340,7 +396,7 @@ function HomeContent() {
         setLoading(false);
       }
     }
-  }, [fetchTitlesInBackground]);
+  }, [fetchTitlesInBackground, currentPage]);
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -453,10 +509,11 @@ function HomeContent() {
   const handleLinkRemoved = useCallback((removedId: string) => {
     setAllLinks(prevLinks => {
       const updated = prevLinks.filter(l => l.id !== removedId);
-      CacheManager.save(updated);
+      const calculatedTotalPages = Math.ceil(updated.length / CARDS_PER_PAGE);
+      CacheManager.save(updated, currentPage, calculatedTotalPages);
       return updated;
     });
-  }, []);
+  }, [currentPage]);
 
   const handleCreateCombination = useCallback(async () => {
     if (!newCombinationName.trim()) return;
@@ -511,7 +568,8 @@ function HomeContent() {
 
       setAllLinks(prevLinks => {
         const updatedLinks = [linkWithTitle, ...prevLinks];
-        CacheManager.save(updatedLinks);
+        const calculatedTotalPages = Math.ceil(updatedLinks.length / CARDS_PER_PAGE);
+        CacheManager.save(updatedLinks, currentPage, calculatedTotalPages);
         return updatedLinks;
       });
       return;
@@ -526,10 +584,11 @@ function HomeContent() {
 
     setAllLinks(prevLinks => {
       const updatedLinks = [linkWithTitle, ...prevLinks];
-      CacheManager.save(updatedLinks);
+      const calculatedTotalPages = Math.ceil(updatedLinks.length / CARDS_PER_PAGE);
+      CacheManager.save(updatedLinks, currentPage, calculatedTotalPages);
       return updatedLinks;
     });
-  }, []);
+  }, [currentPage]);
 
   const handleSubmitSuccess = useCallback(() => {
     setIsSubmitModalOpen(false);
@@ -542,6 +601,26 @@ function HomeContent() {
   const handleSubmitClick = useCallback(() => {
     setIsPasswordDialogOpen(true);
   }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentPage', page.toString());
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handlePreviousPage = useCallback(() => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  }, [currentPage, handlePageChange]);
+
+  const handleNextPage = useCallback(() => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  }, [currentPage, totalPages, handlePageChange]);
 
   // ============================================
   // EFFECTS
@@ -662,7 +741,7 @@ function HomeContent() {
                       {combination.links.length > 0 ? (
                         <SimpleGrid
                           items={combination.links}
-                          renderItem={(link: Link) => <LinkCard key={link.id} link={link} />}
+                          renderItem={(link: Link) => <LinkCard key={`combo-${combination.id}-${link.id}`} link={link} />}
                           columns={4}
                         />
                       ) : (
@@ -691,18 +770,28 @@ function HomeContent() {
                   <LoadingCards />
                 </div>
               ) : (
-                <SimpleGrid
-                  items={filteredAndSortedLinks}
-                  renderItem={(link: Link, index: number) => (
-                    <LinkCard 
-                      link={link} 
-                      onRemoved={handleLinkRemoved} 
-                      index={index} 
-                    />
-                  )}
-                  columns={4}
-                  className="pb-8"
-                />
+                <>
+                  <SimpleGrid
+                    items={paginatedLinks}
+                    renderItem={(link: Link, index: number) => (
+                      <LinkCard 
+                        key={`${link.id}-${currentPage}`} // Force remount on page change
+                        link={link} 
+                        onRemoved={handleLinkRemoved} 
+                        index={index} 
+                      />
+                    )}
+                    columns={4}
+                    className="pb-2 md:pb-4 lg:pb-6"
+                  />
+                  <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    onPreviousPage={handlePreviousPage}
+                    onNextPage={handleNextPage}
+                  />
+                </>
               )}
             </div>
           )}

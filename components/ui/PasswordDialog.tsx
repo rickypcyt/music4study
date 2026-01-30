@@ -76,7 +76,7 @@ export default function PasswordDialog({ isOpen, onClose, onSuccess }: PasswordD
             <Input
               id="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="Enter the secret passcode"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="bg-background/70 border-border/40 text-foreground placeholder:text-muted-foreground h-12 text-lg"

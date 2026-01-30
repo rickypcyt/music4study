@@ -9,6 +9,7 @@ import ResourcePreloader from '@/components/ResourcePreloader';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
+import { VideoPlayerProvider } from '@/contexts/VideoPlayerContext';
 import { cn } from '@/lib/utils';
 import { config } from '@/lib/config';
 
@@ -125,9 +126,11 @@ export default function RootLayout({
             <div className="animate-pulse text-foreground/70">Loading...</div>
           </div>
         }>
-          <PageTransition>
-            {children}
-          </PageTransition>
+          <VideoPlayerProvider>
+            <PageTransition>
+              {children}
+            </PageTransition>
+          </VideoPlayerProvider>
         </Suspense>
         <Toaster />
         <PerformanceMonitor />

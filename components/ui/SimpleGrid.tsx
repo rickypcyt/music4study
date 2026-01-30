@@ -51,7 +51,7 @@ function SimpleGridComponent<T>({
 
   return (
     <div
-      className={`grid gap-6 w-full ${getGridClasses(columns)} ${className}`}
+      className={`grid gap-2 w-full ${getGridClasses(columns)} ${className}`}
     >
       {items.map((item, index) => (
         <div key={index} className="w-full">

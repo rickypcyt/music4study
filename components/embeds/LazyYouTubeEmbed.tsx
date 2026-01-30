@@ -1,9 +1,11 @@
 'use client';
 
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
-import { youtubeCache } from '@/lib/youtubeCache';
 import { useEffect, useState } from 'react';
+
 import Image from 'next/image';
+import { useVideoPlayer } from '@/contexts/VideoPlayerContext';
+import { youtubeCache } from '@/lib/youtubeCache';
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -37,6 +39,21 @@ export default function LazyYouTubeEmbed({
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   
+  const { isPlaying, setCurrentPlaying } = useVideoPlayer();
+  const shouldPlay = isPlaying(linkId);
+  
+  // Dynamic embed URL based on whether this video should play
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${shouldPlay ? '1' : '0'}&rel=0&modestbranding=1`;
+  
+  // Reset state when linkId changes (new page or different video)
+  useEffect(() => {
+    setIsLoaded(false);
+    setIsBlocked(false);
+    setLoadError(false);
+    setVideoInfo(null);
+    setIsThumbnailLoaded(false);
+  }, [linkId]);
+  
   // Use videoInfo title if available, otherwise use initialTitle (from link data)
   // Filter out URLs - if initialTitle is a URL, don't use it as display title
   const isValidTitle = (title: string | undefined): boolean => {
@@ -59,7 +76,6 @@ export default function LazyYouTubeEmbed({
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
 
   const handleThumbnailError = () => {
     console.warn(`No se pudo cargar la miniatura para el video ${videoId}`);
@@ -193,6 +209,13 @@ export default function LazyYouTubeEmbed({
     };
   }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
+  // Reset to thumbnail when this video is no longer the playing one
+  useEffect(() => {
+    if (!shouldPlay && isLoaded) {
+      setIsLoaded(false);
+    }
+  }, [shouldPlay, isLoaded]);
+
   const handleIframeError = () => {
     setIsBlocked(true);
     setLoadError(true);
@@ -265,6 +288,7 @@ export default function LazyYouTubeEmbed({
           onClick={(e) => {
             e.preventDefault();
             recordLastPlayed();
+            setCurrentPlaying(linkId); // Establecer este video como el que se está reproduciendo
             setIsLoaded(true);
             // Forzar el enfoque en el iframe después de que se monte
             setTimeout(() => {
