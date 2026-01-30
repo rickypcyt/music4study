@@ -156,11 +156,19 @@ const getInitialSort = (searchParams: URLSearchParams): SortType => {
   return (searchParams.get('sort') as SortType) || 'date';
 };
 
-const getInitialPage = (): number => {
+const getInitialPage = (searchParams: URLSearchParams): number => {
+  // Primero intentar obtener de la URL
+  const pageFromUrl = searchParams.get('page');
+  if (pageFromUrl && !isNaN(Number(pageFromUrl)) && Number(pageFromUrl) > 0) {
+    return Number(pageFromUrl);
+  }
+  
+  // Si no hay en la URL, intentar del localStorage
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('currentPage');
     return stored ? parseInt(stored, 10) : 1;
   }
+  
   return 1;
 };
 
@@ -189,11 +197,21 @@ const sortLinks = (links: Link[], sortType: SortType): Link[] => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-function HomeContent() {
-  const router = useRouter();
+interface HomeContentProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const router = useRouter();
   const { toast } = useToast();
+
+  // Usar searchParams del hook o los props iniciales
+  const effectiveSearchParams = useMemo(() => {
+    if (searchParams) return searchParams;
+    return new URLSearchParams(initialSearchParams?.toString() || '');
+  }, [searchParams, initialSearchParams]);
 
   // State
   const [currentView, setCurrentView] = useState<ViewType>(() => getInitialView(pathname));
@@ -207,9 +225,9 @@ function HomeContent() {
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
-  const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(searchParams));
+  const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(effectiveSearchParams));
   const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
-  const [currentPage, setCurrentPage] = useState(() => getInitialPage());
+  const [currentPage, setCurrentPage] = useState(() => getInitialPage(effectiveSearchParams));
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Refs
@@ -241,28 +259,37 @@ function HomeContent() {
 
   // Reset page when filters change (but not on initial load)
   useEffect(() => {
-    if (!isInitialLoad) {
-      setCurrentPage(1);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('currentPage', '1');
-      }
+    if (isInitialLoadRef.current) return; // Skip during initial load
+
+    setCurrentPage(1);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentPage', '1');
+      // Update URL to reflect page reset
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', '1');
+      window.history.replaceState({}, '', url);
     }
-  }, [selectedGenre, currentSort, isInitialLoad]);
+  }, [selectedGenre, currentSort]);
 
   // Mark initial load as complete after first render
   useEffect(() => {
     setIsInitialLoad(false);
   }, []);
 
-  // Validate current page is within bounds
+  // Validate current page is within bounds (only after data is loaded)
   useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
+    if (!loading && currentPage > totalPages && totalPages > 0) {
+      const correctedPage = Math.max(1, totalPages);
+      setCurrentPage(correctedPage);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('currentPage', '1');
+        localStorage.setItem('currentPage', correctedPage.toString());
+        // Also update URL to reflect the correction
+        const url = new URL(window.location.href);
+        url.searchParams.set('page', correctedPage.toString());
+        window.history.replaceState({}, '', url);
       }
     }
-  }, [totalPages, currentPage]);
+  }, [totalPages, currentPage, loading]);
 
   // ============================================
   // DATA FETCHING CALLBACKS
@@ -606,6 +633,11 @@ function HomeContent() {
     setCurrentPage(page);
     if (typeof window !== 'undefined') {
       localStorage.setItem('currentPage', page.toString());
+      
+      // Actualizar la URL sin recargar la página
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', page.toString());
+      window.history.pushState({}, '', url);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -651,6 +683,20 @@ function HomeContent() {
       setCurrentView('home');
     }
   }, [searchParams]);
+
+  // Update current page from URL search params
+  useEffect(() => {
+    const pageFromUrl = effectiveSearchParams.get('page');
+    if (pageFromUrl && !isNaN(Number(pageFromUrl)) && Number(pageFromUrl) > 0) {
+      const newPage = Number(pageFromUrl);
+      if (newPage !== currentPage) {
+        setCurrentPage(newPage);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentPage', newPage.toString());
+        }
+      }
+    }
+  }, [effectiveSearchParams]);
 
   // Fetch combinations when in combinations view
   useEffect(() => {
@@ -897,10 +943,14 @@ function HomeContent() {
   );
 }
 
-export default function Home() {
+interface PageProps {
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
+export default function Home({ searchParams }: PageProps) {
   return (
     <Suspense fallback={<LoadingCards />}>
-      <HomeContent />
+      <HomeContent searchParams={searchParams} />
     </Suspense>
   );
 }
