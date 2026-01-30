@@ -39,20 +39,24 @@ export default function LazyYouTubeEmbed({
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   
-  const { isPlaying, setCurrentPlaying } = useVideoPlayer();
+  const { isPlaying, setCurrentPlaying, currentPlayingInfo } = useVideoPlayer();
   const shouldPlay = isPlaying(linkId);
+  const isBackgroundPlaying = currentPlayingInfo?.linkId === linkId;
   
   // Dynamic embed URL based on whether this video should play
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${shouldPlay ? '1' : '0'}&rel=0&modestbranding=1`;
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${shouldPlay ? '1' : '0'}&rel=0&modestbranding=1&enablejsapi=1&playsinline=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`;
   
   // Reset state when linkId changes (new page or different video)
+  // But don't reset isLoaded if this video should be playing
   useEffect(() => {
-    setIsLoaded(false);
+    if (!shouldPlay) {
+      setIsLoaded(false);
+    }
     setIsBlocked(false);
     setLoadError(false);
     setVideoInfo(null);
     setIsThumbnailLoaded(false);
-  }, [linkId]);
+  }, [linkId, shouldPlay]);
   
   // Use videoInfo title if available, otherwise use initialTitle (from link data)
   // Filter out URLs - if initialTitle is a URL, don't use it as display title
@@ -209,6 +213,22 @@ export default function LazyYouTubeEmbed({
     };
   }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
+  // Auto-play when this video becomes the playing one
+  // Only auto-load if this is a fresh interaction, not from localStorage restoration
+  useEffect(() => {
+    if (shouldPlay && !isLoaded) {
+      // Check if this is from localStorage restoration (component just mounted)
+      // If so, don't auto-load to avoid autoplay issues
+      const isFromStorage = typeof window !== 'undefined' &&
+        localStorage.getItem('m4s_current_playing') === linkId;
+
+      if (!isFromStorage) {
+        recordLastPlayed();
+        setIsLoaded(true);
+      }
+    }
+  }, [shouldPlay, isLoaded, linkId]);
+
   // Reset to thumbnail when this video is no longer the playing one
   useEffect(() => {
     if (!shouldPlay && isLoaded) {
@@ -288,8 +308,18 @@ export default function LazyYouTubeEmbed({
           onClick={(e) => {
             e.preventDefault();
             recordLastPlayed();
-            setCurrentPlaying(linkId); // Establecer este video como el que se está reproduciendo
-            setIsLoaded(true);
+            // If this video is already playing in background, just take control locally
+            if (shouldPlay && !isLoaded) {
+              setIsLoaded(true);
+            } else {
+              // Start new playback
+              setCurrentPlaying(linkId, {
+                videoId,
+                title: displayTitle,
+                url: videoUrl
+              });
+              setIsLoaded(true);
+            }
             // Forzar el enfoque en el iframe después de que se monte
             setTimeout(() => {
               const iframe = document.querySelector<HTMLIFrameElement>(`iframe[src*="${videoId}"]`);
@@ -323,14 +353,30 @@ export default function LazyYouTubeEmbed({
           )}
 
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 bg-black bg-opacity-70 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M8 5v14l11-7z" />
-              </svg>
+            <div className="flex flex-col items-center space-y-2">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
+                shouldPlay
+                  ? 'bg-red-600 bg-opacity-90 border-2 border-red-400'
+                  : 'bg-black bg-opacity-70'
+              }`}>
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                {shouldPlay && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  </div>
+                )}
+              </div>
+              {shouldPlay && (
+                <div className="bg-black bg-opacity-70 px-3 py-1 rounded-full text-white text-xs font-medium">
+                  Reproduciendo en background
+                </div>
+              )}
             </div>
           </div>
         </div>

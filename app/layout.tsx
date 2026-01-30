@@ -10,6 +10,7 @@ import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import { VideoPlayerProvider } from '@/contexts/VideoPlayerContext';
+import BackgroundPlayer from '@/components/embeds/BackgroundPlayer';
 import { cn } from '@/lib/utils';
 import { config } from '@/lib/config';
 
@@ -130,6 +131,7 @@ export default function RootLayout({
             <PageTransition>
               {children}
             </PageTransition>
+            <BackgroundPlayer />
           </VideoPlayerProvider>
         </Suspense>
         <Toaster />
