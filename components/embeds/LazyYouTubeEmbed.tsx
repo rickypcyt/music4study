@@ -4,8 +4,9 @@ import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvail
 import { useEffect, useState } from 'react';
 
 import Image from 'next/image';
-import { useVideoPlayer } from '@/contexts/VideoPlayerContext';
+import { useAudio } from '@/contexts/AudioContext';
 import { youtubeCache } from '@/lib/youtubeCache';
+import GlobalYouTubePlayer from './BackgroundPlayer';
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -39,24 +40,29 @@ export default function LazyYouTubeEmbed({
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   
-  const { isPlaying, setCurrentPlaying, currentPlayingInfo } = useVideoPlayer();
-  const shouldPlay = isPlaying(linkId);
-  const isBackgroundPlaying = currentPlayingInfo?.linkId === linkId;
-  
-  // Dynamic embed URL based on whether this video should play
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${shouldPlay ? '1' : '0'}&rel=0&modestbranding=1&enablejsapi=1&playsinline=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`;
+  const { isPlaying, currentVideoId, playVideo, iframeOwner, setIframeOwner } = useAudio();
+  const shouldPlay = Boolean(isPlaying && currentVideoId && currentVideoId === videoId);
+  const isOwner = iframeOwner === linkId;
   
   // Reset state when linkId changes (new page or different video)
   // But don't reset isLoaded if this video should be playing
   useEffect(() => {
     if (!shouldPlay) {
       setIsLoaded(false);
+      // Liberar posesión si este componente la tenía
+      if (isOwner) {
+        setIframeOwner(null);
+      }
+    } else if (shouldPlay && !isOwner) {
+      // Tomar posesión del iframe si este video debería reproducirse
+      setIframeOwner(linkId);
+      setIsLoaded(true);
     }
     setIsBlocked(false);
     setLoadError(false);
     setVideoInfo(null);
     setIsThumbnailLoaded(false);
-  }, [linkId, shouldPlay]);
+  }, [linkId, shouldPlay, isOwner, setIframeOwner]);
   
   // Use videoInfo title if available, otherwise use initialTitle (from link data)
   // Filter out URLs - if initialTitle is a URL, don't use it as display title
@@ -213,28 +219,14 @@ export default function LazyYouTubeEmbed({
     };
   }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
-  // Auto-play when this video becomes the playing one
-  // Only auto-load if this is a fresh interaction, not from localStorage restoration
+  // Sincronizar la visibilidad del iframe con la posesión
   useEffect(() => {
-    if (shouldPlay && !isLoaded) {
-      // Check if this is from localStorage restoration (component just mounted)
-      // If so, don't auto-load to avoid autoplay issues
-      const isFromStorage = typeof window !== 'undefined' &&
-        localStorage.getItem('m4s_current_playing') === linkId;
-
-      if (!isFromStorage) {
-        recordLastPlayed();
-        setIsLoaded(true);
-      }
-    }
-  }, [shouldPlay, isLoaded, linkId]);
-
-  // Reset to thumbnail when this video is no longer the playing one
-  useEffect(() => {
-    if (!shouldPlay && isLoaded) {
+    if (isOwner && shouldPlay && !isLoaded) {
+      setIsLoaded(true);
+    } else if ((!isOwner || !shouldPlay) && isLoaded) {
       setIsLoaded(false);
     }
-  }, [shouldPlay, isLoaded]);
+  }, [isOwner, shouldPlay, isLoaded]);
 
   const handleIframeError = () => {
     setIsBlocked(true);
@@ -303,30 +295,15 @@ export default function LazyYouTubeEmbed({
     <div className={`w-full ${className}`}>
       <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
       {!isLoaded ? (
-        <div 
+        <div
           className="relative w-full h-full cursor-pointer group"
           onClick={(e) => {
             e.preventDefault();
             recordLastPlayed();
-            // If this video is already playing in background, just take control locally
-            if (shouldPlay && !isLoaded) {
-              setIsLoaded(true);
-            } else {
-              // Start new playback
-              setCurrentPlaying(linkId, {
-                videoId,
-                title: displayTitle,
-                url: videoUrl
-              });
-              setIsLoaded(true);
-            }
-            // Forzar el enfoque en el iframe después de que se monte
-            setTimeout(() => {
-              const iframe = document.querySelector<HTMLIFrameElement>(`iframe[src*="${videoId}"]`);
-              if (iframe) {
-                iframe.focus();
-              }
-            }, 100);
+            // Tomar posesión del iframe y comenzar reproducción
+            setIframeOwner(linkId);
+            playVideo(videoId);
+            setIsLoaded(true);
           }}
         >
             {!isThumbnailLoaded && (
@@ -381,15 +358,11 @@ export default function LazyYouTubeEmbed({
           </div>
         </div>
       ) : (
-        <iframe
+        // Mostrar el iframe global cuando este componente tiene posesión
+        <GlobalYouTubePlayer
+          ownerId={linkId}
           className="absolute inset-0 w-full h-full"
-          src={embedUrl}
-          title={videoInfo?.title || initialTitle}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          onError={handleIframeError}
-          loading="lazy"
-          sandbox="allow-scripts allow-same-origin allow-presentation"
+          style={{}}
         />
       )}
       </div>

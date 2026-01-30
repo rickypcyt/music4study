@@ -10,7 +10,8 @@ import { Plus } from "lucide-react";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/components/hooks/use-toast";
-import { useVideoPlayer } from "@/contexts/VideoPlayerContext";
+import { useAudio } from "@/contexts/AudioContext";
+import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
 
 interface Link {
   id: string;
@@ -56,7 +57,7 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
   const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
-  const { isPlaying } = useVideoPlayer();
+  const { isPlaying, currentVideoId } = useAudio();
 
   const fetchCombinations = useCallback(async () => {
     try {
@@ -234,7 +235,15 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
     ? (isValidTitle(link.title) ? link.title : (youtubeTitle || ''))
     : link.title;
   
-  const isCurrentlyPlaying = isPlaying(link.id);
+  const extractVideoId = (url: string) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      return extractYouTubeId(url);
+    }
+    // For other platforms, return null for now
+    return null;
+  };
+
+  const isCurrentlyPlaying = Boolean(isPlaying && currentVideoId && currentVideoId === extractVideoId(link.url));
 
   return (
     <>

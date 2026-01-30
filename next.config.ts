@@ -18,9 +18,10 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  // Paquetes externos para server components
+  serverExternalPackages: ['sharp', 'onnxruntime-node'],
   // Configuración experimental combinada
   experimental: {
-    serverComponentsExternalPackages: ['sharp', 'onnxruntime-node'],
     optimizePackageImports: [
       '@radix-ui/react-icons',
       'lucide-react',
@@ -43,12 +44,6 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-    },
-  },
-  // Configuración para rutas de API
-  api: {
-    bodyParser: {
-      sizeLimit: '4mb',
     },
   },
   // Deshabilitar la generación estática para rutas específicas

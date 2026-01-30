@@ -9,8 +9,7 @@ import ResourcePreloader from '@/components/ResourcePreloader';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
 import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
-import { VideoPlayerProvider } from '@/contexts/VideoPlayerContext';
-import BackgroundPlayer from '@/components/embeds/BackgroundPlayer';
+import ClientProvider from '@/components/ClientProvider';
 import { cn } from '@/lib/utils';
 import { config } from '@/lib/config';
 
@@ -122,18 +121,17 @@ export default function RootLayout({
         geistSans.variable,
         geistMono.variable
       )}>
-        <Suspense fallback={
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="animate-pulse text-foreground/70">Loading...</div>
-          </div>
-        }>
-          <VideoPlayerProvider>
-            <PageTransition>
-              {children}
-            </PageTransition>
-            <BackgroundPlayer />
-          </VideoPlayerProvider>
-        </Suspense>
+          <ClientProvider>
+            <Suspense fallback={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-pulse text-foreground/70">Loading...</div>
+              </div>
+            }>
+              <PageTransition>
+                {children}
+              </PageTransition>
+            </Suspense>
+          </ClientProvider>
         <Toaster />
         <PerformanceMonitor />
       </body>

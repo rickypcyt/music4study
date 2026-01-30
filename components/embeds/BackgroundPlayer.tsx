@@ -1,98 +1,74 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState } from 'react';
-import { useVideoPlayer } from '@/contexts/VideoPlayerContext';
+import { useAudio } from '@/contexts/AudioContext';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
-// Declare YouTube API types
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
-}
-
-interface BackgroundPlayerProps {
+interface GlobalYouTubePlayerProps {
+  ownerId?: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export default function BackgroundPlayer({ className = '' }: BackgroundPlayerProps) {
-  const { currentPlayingInfo } = useVideoPlayer();
+export default function GlobalYouTubePlayer({ ownerId, className = '', style }: GlobalYouTubePlayerProps) {
+  const { isPlaying, currentVideoId, volume, isMuted, iframeOwner } = useAudio();
+  const [isLoaded, setIsLoaded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const playerRef = useRef<any>(null);
-  const [isApiReady, setIsApiReady] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [currentEmbedUrl, setCurrentEmbedUrl] = useState<string>('');
 
-  // Mark as client-side
+  // Solo mostrar el iframe si este componente es el owner o si no hay owner definido
+  const shouldShowIframe = !iframeOwner || iframeOwner === ownerId;
+
+  // Generate embed URL
+  const generateEmbedUrl = useCallback((videoId: string) => {
+    const autoplay = isPlaying ? '1' : '0';
+    const mute = isMuted ? '1' : '0';
+    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=${autoplay}&rel=0&modestbranding=1&enablejsapi=1&playsinline=1&mute=${mute}`;
+  }, [isPlaying, isMuted]);
+
+  // Load/unload iframe based on playback state
   useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Load YouTube IFrame API
-  useEffect(() => {
-    if (typeof window !== 'undefined' && !window.YT) {
-      window.onYouTubeIframeAPIReady = () => {
-        setIsApiReady(true);
-      };
-
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    } else if (window.YT) {
-      setIsApiReady(true);
+    if (isPlaying && currentVideoId && !isLoaded) {
+      setIsLoaded(true);
+      setCurrentEmbedUrl(generateEmbedUrl(currentVideoId));
+    } else if (!isPlaying && isLoaded) {
+      setIsLoaded(false);
+    } else if (isPlaying && currentVideoId && isLoaded && currentEmbedUrl !== generateEmbedUrl(currentVideoId)) {
+      // Video changed, update URL
+      setCurrentEmbedUrl(generateEmbedUrl(currentVideoId));
     }
-  }, []);
+  }, [isPlaying, currentVideoId, isLoaded, generateEmbedUrl, currentEmbedUrl]);
 
-  // Initialize player when iframe is ready and we have a video
+  // Handle volume and mute changes by updating the iframe src
   useEffect(() => {
-    if (iframeRef.current && isApiReady && currentPlayingInfo && !playerRef.current) {
-      playerRef.current = new window.YT.Player(iframeRef.current, {
-        events: {
-          onReady: () => {
-            // Play immediately when ready
-            if (playerRef.current && playerRef.current.playVideo) {
-              playerRef.current.playVideo();
-            }
-          },
-          onStateChange: (event: any) => {
-            // Handle state changes if needed
-          },
-          onError: (error: any) => {
-            console.error('BackgroundPlayer: YouTube player error', error);
-          }
-        }
-      });
+    if (isPlaying && currentVideoId && isLoaded) {
+      const newUrl = generateEmbedUrl(currentVideoId);
+      if (newUrl !== currentEmbedUrl) {
+        setCurrentEmbedUrl(newUrl);
+      }
     }
+  }, [volume, isMuted, isPlaying, currentVideoId, isLoaded, generateEmbedUrl, currentEmbedUrl]);
 
-    return () => {
-      // Don't destroy player on unmount to maintain playback
-    };
-  }, [isApiReady, currentPlayingInfo]);
-
-  // Only render on client and if we have a video to play
-  if (!isClient ||
-      !currentPlayingInfo ||
-      !currentPlayingInfo.videoId ||
-      !currentPlayingInfo.url ||
-      typeof currentPlayingInfo.videoId !== 'string' ||
-      typeof currentPlayingInfo.url !== 'string' ||
-      (!currentPlayingInfo.url.includes('youtube.com') && !currentPlayingInfo.url.includes('youtu.be'))) {
+  if (!isLoaded || !currentVideoId || !shouldShowIframe) {
     return null;
   }
 
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${currentPlayingInfo.videoId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
-
   return (
-    <div className={`fixed top-[-10000px] left-[-10000px] w-[400px] h-[225px] pointer-events-none z-[-1] ${className}`}>
-      <iframe
-        ref={iframeRef}
-        className="w-full h-full"
-        src={embedUrl}
-        title={`Background playback: ${currentPlayingInfo.title}`}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-        loading="lazy"
-      />
-    </div>
+    <iframe
+      ref={iframeRef}
+      className={className}
+      style={style}
+      src={currentEmbedUrl}
+      title="YouTube Music Player"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+      sandbox="allow-scripts allow-same-origin allow-presentation"
+      onLoad={() => {
+        // Handle iframe load if needed
+      }}
+      onError={() => {
+        console.warn('YouTube player iframe failed to load');
+        setIsLoaded(false);
+      }}
+    />
   );
 }
