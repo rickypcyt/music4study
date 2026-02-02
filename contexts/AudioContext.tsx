@@ -1,5 +1,6 @@
 'use client';
-import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+
+import { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 /** Minimal interface for the YouTube player instance (from YT.Player) */
 export interface YouTubePlayerHandle {
@@ -34,6 +35,10 @@ interface AudioContextType extends AudioState {
   registerPlayer: (player: YouTubePlayerHandle | null, onStateChange?: (isPlaying: boolean) => void) => void;
   /** Called by the YT player onStateChange to keep isPlaying in sync */
   syncPlaying: (isPlaying: boolean) => void;
+  /** Move the single YT player div to the global container (call before owner card unmounts so player survives) */
+  relocatePlayerToGlobal: () => void;
+  /** Set by GlobalYouTubePlayer; called by LazyYouTubeEmbed on unmount when it owned the iframe */
+  registerRelocatePlayerToGlobal: (fn: () => void) => void;
 }
 
 const AUDIO_STORAGE_KEY = 'music4study_audio_state';
@@ -50,12 +55,12 @@ const getStoredAudioState = (): AudioState => {
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
-        isPlaying: parsed.isPlaying || false,
-        currentVideoId: parsed.currentVideoId || null,
+        isPlaying: false,
+        currentVideoId: null,
         volume: parsed.volume !== undefined ? parsed.volume : 70,
-        isMuted: parsed.isMuted || false,
-        iframeOwner: parsed.iframeOwner || null,
-        playerState: parsed.playerState !== undefined ? parsed.playerState : -1,
+        isMuted: parsed.isMuted ?? false,
+        iframeOwner: null,
+        playerState: -1,
       };
     }
   } catch (error) {
@@ -65,11 +70,16 @@ const getStoredAudioState = (): AudioState => {
   return { isPlaying: false, currentVideoId: null, volume: 70, isMuted: false, iframeOwner: null, playerState: -1 };
 };
 
+// Solo persistir volumen y mute; no guardar qué estaba reproduciendo (no restaurar al reiniciar)
 const saveAudioState = (state: AudioState) => {
   if (typeof window === 'undefined') return;
 
   try {
-    localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(state));
+    const toStore = {
+      volume: state.volume,
+      isMuted: state.isMuted,
+    };
+    localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(toStore));
   } catch (error) {
     console.warn('Error saving audio state to localStorage:', error);
   }
@@ -79,6 +89,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [audioState, setAudioState] = useState<AudioState>(getStoredAudioState);
   const playerRef = useRef<YouTubePlayerHandle | null>(null);
   const onStateChangeRef = useRef<((isPlaying: boolean) => void) | null>(null);
+  const relocatePlayerToGlobalRef = useRef<() => void>(() => {});
 
   // Save to localStorage whenever state changes
   useEffect(() => {
@@ -95,7 +106,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playVideo = useCallback((videoId: string) => {
-    setAudioState(prev => ({ ...prev, currentVideoId: videoId, isPlaying: true }));
+    // isPlaying solo pasa a true cuando el reproductor dispara onStateChange(PLAYING) vía syncPlaying
+    setAudioState(prev => ({ ...prev, currentVideoId: videoId, isPlaying: false }));
     const p = playerRef.current;
     if (p) {
       try {
@@ -143,19 +155,27 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getCurrentTime = useCallback(() => {
-    // This would need to be implemented with YouTube API or similar
-    // For now, return 0 as a placeholder
+    // This will be handled by the YouTubePlayerWithControls component
+    // The component will manage its own time state
     return 0;
   }, []);
 
   const getDuration = useCallback(() => {
-    // This would need to be implemented with YouTube API or similar
-    // For now, return 0 as a placeholder
+    // This will be handled by the YouTubePlayerWithControls component
+    // The component will manage its own duration state
     return 0;
   }, []);
 
   const setIframeOwner = useCallback((ownerId: string | null) => {
     setAudioState(prev => ({ ...prev, iframeOwner: ownerId }));
+  }, []);
+
+  const relocatePlayerToGlobal = useCallback(() => {
+    relocatePlayerToGlobalRef.current();
+  }, []);
+
+  const registerRelocatePlayerToGlobal = useCallback((fn: () => void) => {
+    relocatePlayerToGlobalRef.current = fn;
   }, []);
 
   return (
@@ -171,7 +191,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       getDuration,
       setIframeOwner,
       registerPlayer,
-      syncPlaying
+      syncPlaying,
+      relocatePlayerToGlobal,
+      registerRelocatePlayerToGlobal
     }}>
       {children}
     </AudioContext.Provider>
@@ -200,7 +222,9 @@ export const useAudio = () => {
       getDuration: () => 0,
       setIframeOwner: () => {},
       registerPlayer: () => {},
-      syncPlaying: () => {}
+      syncPlaying: () => {},
+      relocatePlayerToGlobal: () => {},
+      registerRelocatePlayerToGlobal: () => {}
     };
   }
 

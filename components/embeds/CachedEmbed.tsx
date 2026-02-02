@@ -17,6 +17,7 @@ interface CachedEmbedProps {
   onError?: () => void;
   onUnavailable?: () => void;
   onTitleFetched?: (title: string, channelTitle?: string) => void;
+  onVideoClick?: () => void;
   priority?: boolean; // For LCP images above the fold
 }
 
@@ -29,6 +30,7 @@ export default function CachedEmbed({
   onError,
   onUnavailable,
   onTitleFetched,
+  onVideoClick,
   priority = false,
 }: CachedEmbedProps) {
   const [embedData, setEmbedData] = useState<{ html: string; error?: boolean; thumbnailUrl?: string } | null>(null);
@@ -194,6 +196,7 @@ export default function CachedEmbed({
           className={className}
           onUnavailable={onUnavailable}
           onTitleFetched={onTitleFetched}
+          onVideoClick={onVideoClick}
           priority={priority}
         />
       );

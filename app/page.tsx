@@ -10,6 +10,7 @@ import GenreCloud from '@/components/ui/GenreCloud';
 import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
+import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
 import Navbar from '@/components/ui/Navbar';
 import PaginationControls from '@/components/ui/PaginationControls';
 import PasswordDialog from '@/components/ui/PasswordDialog';
@@ -866,7 +867,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                     onPageChange={handlePageChange}
                     onPreviousPage={handlePreviousPage}
                     onNextPage={handleNextPage}
-                    showCurrentlyPlaying={true}
                   />
                 </>
               )}
@@ -970,6 +970,9 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         onClose={() => setIsPasswordDialogOpen(false)}
         onSuccess={() => setIsSubmitModalOpen(true)}
       />
+
+      {/* Currently Playing — floating bottom-right, independent of pagination */}
+      <CurrentlyPlayingFloating />
     </div>
   );
 }

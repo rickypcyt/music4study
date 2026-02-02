@@ -4,6 +4,9 @@ import { createContext, useContext, useCallback, useRef, useState, type ReactNod
 
 const GLOBAL_TARGET_KEY = '__global__';
 
+/** Key for the "Currently Playing" modal slot; when registered, the player is shown in the modal */
+export const CURRENTLY_PLAYING_MODAL_KEY = '__currently_playing_modal__';
+
 type TargetMap = Map<string, HTMLElement | null>;
 
 interface IframeTargetContextValue {
@@ -11,6 +14,7 @@ interface IframeTargetContextValue {
   unregisterTarget: (ownerId: string) => void;
   getTarget: (ownerId: string) => HTMLElement | null;
   GLOBAL_KEY: string;
+  CURRENTLY_PLAYING_MODAL_KEY: string;
 }
 
 const IframeTargetContext = createContext<IframeTargetContextValue | null>(null);
@@ -40,6 +44,7 @@ export function IframeTargetProvider({ children }: { children: ReactNode }) {
         unregisterTarget,
         getTarget,
         GLOBAL_KEY: GLOBAL_TARGET_KEY,
+        CURRENTLY_PLAYING_MODAL_KEY,
       }}
     >
       {children}
@@ -55,6 +60,7 @@ export function useIframeTarget() {
       unregisterTarget: () => {},
       getTarget: () => null as HTMLElement | null,
       GLOBAL_KEY: GLOBAL_TARGET_KEY,
+      CURRENTLY_PLAYING_MODAL_KEY,
     };
   }
   return ctx;

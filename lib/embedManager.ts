@@ -67,13 +67,15 @@ class EmbedManager {
             const videoId = this.extractYouTubeId(url);
             // Use youtube-nocookie.com for better privacy and performance
             embedHtml = `<iframe
-              src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1"
+              src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&autohide=1&showinfo=0&enablejsapi=0"
               class="w-full h-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               loading="lazy"
               importance="low"
-              sandbox="allow-scripts allow-same-origin allow-presentation"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+              referrerpolicy="no-referrer"
+              credentialless="true"
             ></iframe>`;
             thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
             break;

@@ -123,7 +123,8 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
                 );
               } else {
                 // Successfully saved to Supabase
-                if (process.env.NODE_ENV === 'development') {
+                if (process.env.NODE_ENV === 'development' && updatePromisesFromCache.length <= 3) {
+                  // Only log for small batches to reduce spam
                   console.log(`✓ Saved cached title to Supabase`);
                 }
               }
@@ -272,7 +273,8 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
         } else {
           // Successfully saved to Supabase
           if (process.env.NODE_ENV === 'development') {
-            console.log(`✓ Saved cached title to Supabase`);
+            // Only log for individual fetches, not batch operations
+            console.log(`✓ Saved title to Supabase`);
           }
         }
       }
@@ -326,6 +328,7 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
       } else {
         // Successfully saved to Supabase
         if (process.env.NODE_ENV === 'development') {
+          // Only log for individual fetches, not batch operations
           console.log(`✓ Saved title to Supabase`);
         }
       }

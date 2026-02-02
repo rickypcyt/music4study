@@ -70,10 +70,18 @@ const nextConfig: NextConfig = {
             value: '*'
           },
           {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS'
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization, X-Requested-With'
+          },
+          {
             key: 'Content-Security-Policy',
             value: `
               default-src 'self' https: blob:;
-              script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:;
+              script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: https://www.youtube.com https://youtube.com https://s.ytimg.com https://www.google.com https://google.com https://apis.google.com;
               style-src 'self' 'unsafe-inline' https:;
               img-src 'self' data: https: blob:;
               media-src 'self' https: blob:;
@@ -96,12 +104,32 @@ const nextConfig: NextConfig = {
                 https://*.youtube.com
                 https://*.youtube-nocookie.com
                 https://*.youtu.be
-                https://*.soundcloud.com;
-              connect-src 'self' https: wss:;
+                https://*.soundcloud.com
+                https://www.google.com
+                https://google.com
+                https://apis.google.com
+                https://*.google.com;
+              connect-src 'self' https: wss: https://www.youtube.com https://youtube.com https://s.ytimg.com https://www.google.com https://google.com https://apis.google.com;
               font-src 'self' data: https://fonts.gstatic.com;
               base-uri 'self';
               form-action 'self';
             `.replace(/\s+/g, ' ').trim()
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'unsafe-none'
+          },
+          {
+            key: 'Cross-Origin-Resource-Policy',
+            value: 'cross-origin'
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'unsafe-none'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=()'
           }
         ],
       },

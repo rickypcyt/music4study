@@ -1,12 +1,21 @@
 'use client';
 
+import '@/lib/suppressConsoleWarnings';
+
 import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
 import { useAudio } from '@/contexts/AudioContext';
 import { useIframeTarget } from '@/contexts/IframeTargetContext';
 import { youtubeCache } from '@/lib/youtubeCache';
+
+// Extend window interface for debug logging
+declare global {
+  interface Window {
+    __youtubeTitleLogged?: Set<string>;
+  }
+}
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -16,6 +25,7 @@ interface LazyYouTubeEmbedProps {
   thumbnailQuality?: 'default' | 'mqdefault' | 'hqdefault' | 'sddefault' | 'maxresdefault';
   onUnavailable?: () => void;
   onTitleFetched?: (title: string, channelTitle?: string) => void;
+  onVideoClick?: () => void;
   priority?: boolean; // For LCP images above the fold
 }
 
@@ -32,60 +42,85 @@ export default function LazyYouTubeEmbed({
   thumbnailQuality = 'hqdefault',
   onUnavailable,
   onTitleFetched,
+  onVideoClick,
   priority = false
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isBlocked, setIsBlocked] = useState(false);
-  const [loadError, setLoadError] = useState(false);
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  const { isPlaying, currentVideoId, playVideo, iframeOwner, setIframeOwner } = useAudio();
+  const { isPlaying, currentVideoId, iframeOwner, setIframeOwner, relocatePlayerToGlobal } = useAudio();
   const { registerTarget, unregisterTarget } = useIframeTarget();
+  const instanceId = useId();
+  /** Clave única por instancia: evita que el video de una card aparezca en otra cuando hay linkId duplicado */
+  const slotKey = `${linkId}-${instanceId}`;
   const shouldPlay = Boolean(isPlaying && currentVideoId && currentVideoId === videoId);
-  const isOwner = iframeOwner === linkId;
+  const isOwner = iframeOwner === slotKey;
   const isOwnerRef = useRef(false);
   const slotRef = useRef<HTMLDivElement>(null);
+  /** En el primer click mostramos el slot de inmediato sin esperar a que el contexto ponga isOwner */
+  const justClaimedOwnerRef = useRef(false);
 
   // Keep ref in sync so cleanup on unmount knows if we owned the iframe
   useEffect(() => {
     isOwnerRef.current = isOwner;
   }, [isOwner]);
 
-  // Al desmontar (ej. al cambiar de página), liberar posesión; el iframe único
-  // sigue en el DOM (portaled al slot global) y no se pausa
+  // Limpiar "just claimed" cuando el contexto ya nos tiene como owner
+  useEffect(() => {
+    if (isOwner) justClaimedOwnerRef.current = false;
+  }, [isOwner]);
+
+  // Al desmontar (ej. al cambiar de página), mover el player al slot global de forma síncrona
+  // y luego liberar posesión; así el reproductor no se pierde cuando React quite el DOM de la card.
   useEffect(() => {
     return () => {
       if (isOwnerRef.current) {
+        relocatePlayerToGlobal();
         setIframeOwner(null);
       }
     };
-  }, [setIframeOwner]);
+  }, [relocatePlayerToGlobal, setIframeOwner]);
 
-  // Registrar este slot para que el iframe único se portal aquí cuando somos owner
-  useEffect(() => {
-    if (!isLoaded) return;
+  // Registrar el slot con clave única por instancia (evita video en card equivocada si hay linkId duplicado)
+  useLayoutEffect(() => {
+    const showingSlot = isLoaded && (isOwner || justClaimedOwnerRef.current);
+    if (!showingSlot) return;
     const el = slotRef.current;
-    if (el) registerTarget(linkId, el);
-    return () => unregisterTarget(linkId);
-  }, [isLoaded, linkId, registerTarget, unregisterTarget]);
+    if (el) registerTarget(slotKey, el);
+    return () => unregisterTarget(slotKey);
+  }, [isLoaded, isOwner, slotKey, registerTarget, unregisterTarget]);
   
+  // Load iframe when showPlayer is true
+  useEffect(() => {
+    if (!showPlayer || !iframeRef.current) return;
+
+    const params = new URLSearchParams({
+      autoplay: '1',
+      mute: '1',
+      controls: '1',
+      rel: '0',
+      modestbranding: '1',
+      playsinline: '1',
+      origin: typeof window !== 'undefined' ? window.location.origin : '',
+      widget_referrer: typeof window !== 'undefined' ? window.location.href : '',
+    });
+
+    iframeRef.current.src = `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+  }, [showPlayer, videoId]);
+
   // Reset state when linkId changes (new page or different video)
-  // But don't reset isLoaded if this video should be playing
+  // No resetear isLoaded si acabamos de hacer click (justClaimedOwnerRef) para que el embed muestre el video de inmediato.
   useEffect(() => {
     if (!shouldPlay) {
-      setIsLoaded(false);
-      // Liberar posesión si este componente la tenía
-      if (isOwner) {
-        setIframeOwner(null);
+      if (!justClaimedOwnerRef.current) {
+        setIsLoaded(false);
+        setShowPlayer(false);
       }
-    } else if (shouldPlay && !isOwner) {
-      // Tomar posesión del iframe si este video debería reproducirse
-      setIframeOwner(linkId);
-      setIsLoaded(true);
+      if (isOwner) setIframeOwner(null);
     }
-    setIsBlocked(false);
-    setLoadError(false);
     setVideoInfo(null);
     setIsThumbnailLoaded(false);
   }, [linkId, shouldPlay, isOwner, setIframeOwner]);
@@ -103,15 +138,17 @@ export default function LazyYouTubeEmbed({
   
   const displayTitle = videoInfo?.title || (isValidTitle(initialTitle) ? initialTitle : '');
   
-  // Debug in development
-  if (process.env.NODE_ENV === 'development') {
-    if (!displayTitle) {
+  // Debug in development - only log if we actually have missing data
+  if (process.env.NODE_ENV === 'development' && !displayTitle && videoId) {
+    // Only log once per videoId to reduce spam
+    if (!window.__youtubeTitleLogged?.has(videoId)) {
+      window.__youtubeTitleLogged = window.__youtubeTitleLogged || new Set();
+      window.__youtubeTitleLogged.add(videoId);
       console.log('LazyYouTubeEmbed: No title available', { videoId, initialTitle, videoInfo, displayTitle });
     }
   }
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
-  const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
   const handleThumbnailError = () => {
     console.warn(`No se pudo cargar la miniatura para el video ${videoId}`);
@@ -226,14 +263,12 @@ export default function LazyYouTubeEmbed({
         
         if (!isAvailable) {
           // Mark as load error (will show "Video Unavailable")
-          setLoadError(true);
           await removeUnavailableVideo(linkId);
           onUnavailable?.();
         }
       } catch (err) {
         if (isMounted) {
           console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
-          setLoadError(true);
         }
       }
     };
@@ -245,86 +280,33 @@ export default function LazyYouTubeEmbed({
     };
   }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
-  // Sincronizar la visibilidad del iframe con la posesión
-  useEffect(() => {
-    if (isOwner && shouldPlay && !isLoaded) {
-      setIsLoaded(true);
-    } else if ((!isOwner || !shouldPlay) && isLoaded) {
-      setIsLoaded(false);
-    }
-  }, [isOwner, shouldPlay, isLoaded]);
-
-  // Persist last played timestamp per linkId in localStorage
-  const recordLastPlayed = () => {
-    try {
-      const key = 'm4s_last_played';
-      const raw = localStorage.getItem(key);
-      const map: Record<string, string> = raw ? JSON.parse(raw) : {};
-      map[linkId] = new Date().toISOString();
-      localStorage.setItem(key, JSON.stringify(map));
-    } catch {}
-  };
-
-  if (isBlocked || loadError) {
-    return (
-      <div className={`relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden ${className}`}>
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
-          <div className="mb-4">
-            <svg
-              className="w-12 h-12 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold mb-2">
-            {isBlocked ? 'Content Blocked' : 'Video Unavailable'}
-          </h3>
-          <p className="text-gray-600 mb-4">
-            {isBlocked 
-              ? 'YouTube embeds are blocked by your browser.'
-              : 'This video cannot be embedded. You can still watch it on YouTube.'}
-          </p>
-          <a
-            href={videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
-            </svg>
-            Watch on YouTube
-          </a>
-        </div>
-      </div>
-    );
-  }
+  // Slot cuando somos owner o recién clickeamos (un solo click para empezar)
+  const showSlot = isLoaded && (isOwner || justClaimedOwnerRef.current);
 
   return (
     <div className={`w-full ${className}`}>
       <div className="relative w-full aspect-video bg-gray-100 rounded-lg overflow-hidden">
-      {!isLoaded ? (
+      {showPlayer ? (
+        // Mostrar el iframe de YouTube directamente
+        <iframe
+          ref={iframeRef}
+          title={displayTitle || 'YouTube video'}
+          className="absolute inset-0 w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          loading="lazy"
+        />
+      ) : !showSlot ? (
         <div
           className="relative w-full h-full cursor-pointer group"
           onClick={(e) => {
             e.preventDefault();
-            recordLastPlayed();
-            // Tomar posesión del iframe y comenzar reproducción
-            setIframeOwner(linkId);
-            playVideo(videoId);
-            setIsLoaded(true);
+            if (onVideoClick) {
+              onVideoClick();
+            } else {
+              // Mostrar el reproductor de YouTube con iframe
+              setShowPlayer(true);
+            }
           }}
         >
             {!isThumbnailLoaded && (
@@ -340,7 +322,7 @@ export default function LazyYouTubeEmbed({
               height={360}
               priority={priority}
               loading={priority ? undefined : "lazy"}
-              onLoadingComplete={() => setIsThumbnailLoaded(true)}
+              onLoad={() => setIsThumbnailLoaded(true)}
               onError={handleThumbnailError}
               unoptimized
             />
@@ -379,7 +361,7 @@ export default function LazyYouTubeEmbed({
           </div>
         </div>
       ) : (
-        // Slot: el iframe único (en ClientProvider) se portal aquí cuando somos owner
+        // Slot: el iframe único se portal aquí solo cuando somos owner (click en esta card)
         <div ref={slotRef} className="absolute inset-0 w-full h-full" />
       )}
       </div>
@@ -402,4 +384,4 @@ export function extractYouTubeId(url: string): string | null {
     }
   }
   return null;
-} 
+}

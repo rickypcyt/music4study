@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { AudioProvider } from '@/contexts/AudioContext';
+import '@/lib/suppressConsoleWarnings'; // Suppress YouTube console warnings
+
 import { IframeTargetProvider, useIframeTarget } from '@/contexts/IframeTargetContext';
+import { useEffect, useRef } from 'react';
+
+import { AudioProvider } from '@/contexts/AudioContext';
 import GlobalYouTubePlayer from '@/components/embeds/BackgroundPlayer';
 
 function GlobalIframeSlot() {

@@ -7,11 +7,11 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import CachedEmbed from './embeds/CachedEmbed';
 import { Plus } from "lucide-react";
+import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 import { supabase } from "@/lib/supabase";
-import { useToast } from "@/components/hooks/use-toast";
 import { useAudio } from "@/contexts/AudioContext";
-import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
+import { useToast } from "@/components/hooks/use-toast";
 
 interface Link {
   id: string;
@@ -95,11 +95,6 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
       const confirmedAge = Date.now() - new Date(link.titleConfirmedAt).getTime();
       const ONE_HOUR = 60 * 60 * 1000;
       if (confirmedAge < ONE_HOUR) {
-        console.log('⏭️ LinkCard: Skipping confirmed link', {
-          id: link.id,
-          title: link.title,
-          confirmedAge: Math.round(confirmedAge / 1000) + 's ago'
-        });
         return;
       }
     }
@@ -109,23 +104,28 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
 
     // Only fetch if: YouTube AND needs title AND not already fetched
     if (isYouTube && needsTitleFetch) {
-      console.log('🔄 LinkCard: Fetching title');
-
-      fetchAndStoreTitle(link).then((fetchedTitle) => {
-        if (!cancelled && fetchedTitle) {
-          console.log('✅ LinkCard: Got title');
-          setYoutubeTitle(fetchedTitle);
-        }
-      }).catch(err => {
+      // Add debouncing to prevent multiple rapid calls
+      const timeoutId = setTimeout(() => {
         if (!cancelled) {
-          console.error('❌ LinkCard: Error fetching title', err);
+          console.log('🔄 LinkCard: Fetching title');
+          fetchAndStoreTitle(link).then((fetchedTitle) => {
+            if (!cancelled && fetchedTitle) {
+              console.log('✅ LinkCard: Got title');
+              setYoutubeTitle(fetchedTitle);
+            }
+          }).catch(err => {
+            if (!cancelled) {
+              console.error('❌ LinkCard: Error fetching title', err);
+            }
+          });
         }
-      });
-    }
+      }, 500); // 500ms debounce
 
-    return () => {
-      cancelled = true;
-    };
+      return () => {
+        cancelled = true;
+        clearTimeout(timeoutId);
+      };
+    }
   }, [link, youtubeTitle]); // Only run when link changes
 
   const handleAddToCombination = async () => {
