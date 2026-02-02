@@ -16,7 +16,7 @@ export default function SimpleYouTubeEmbed({
   title = 'YouTube video',
   className = '',
   autoplay = false,
-  muted = true,
+  muted = false,
   controls = true
 }: SimpleYouTubeEmbedProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);

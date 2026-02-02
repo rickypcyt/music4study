@@ -99,7 +99,7 @@ export default function LazyYouTubeEmbed({
 
     const params = new URLSearchParams({
       autoplay: '1',
-      mute: '1',
+      mute: '0',
       controls: '1',
       rel: '0',
       modestbranding: '1',
