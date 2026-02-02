@@ -6,13 +6,12 @@ import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitl
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
+import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
 import GenreCloud from '@/components/ui/GenreCloud';
 import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
-import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
 import Navbar from '@/components/ui/Navbar';
-import PaginationControls from '@/components/ui/PaginationControls';
 import PasswordDialog from '@/components/ui/PasswordDialog';
 import SimpleGrid from '@/components/ui/SimpleGrid';
 import SubmitForm from './submit/SubmitForm';
@@ -249,43 +248,40 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   }, [allLinks, selectedGenre, currentSort]);
 
   const paginatedLinks = useMemo(() => {
-    const startIndex = (currentPage - 1) * CARDS_PER_PAGE;
-    const endIndex = startIndex + CARDS_PER_PAGE;
-    return filteredAndSortedLinks.slice(startIndex, endIndex);
-  }, [filteredAndSortedLinks, currentPage]);
-
-  const totalPages = useMemo(() => {
-    return Math.ceil(filteredAndSortedLinks.length / CARDS_PER_PAGE);
-  }, [filteredAndSortedLinks.length]);
+  // Return all links instead of paginated
+  return filteredAndSortedLinks;
+}, [filteredAndSortedLinks]);
 
   // Reset page when filters change (but not on initial load)
-  useEffect(() => {
-    if (isInitialLoadRef.current) return; // Skip during initial load
+  // No longer needed since we're showing all content
+  // useEffect(() => {
+  //   if (isInitialLoadRef.current) return; // Skip during initial load
 
-    setCurrentPage(1);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('currentPage', '1');
-      // Update URL to reflect page reset
-      const url = new URL(window.location.href);
-      url.searchParams.set('page', '1');
-      window.history.replaceState({}, '', url);
-    }
-  }, [selectedGenre, currentSort]);
+  //   setCurrentPage(1);
+  //   if (typeof window !== 'undefined') {
+  //     localStorage.setItem('currentPage', '1');
+  //     // Update URL to reflect page reset
+  //     const url = new URL(window.location.href);
+  //     url.searchParams.set('page', '1');
+  //     window.history.replaceState({}, '', url);
+  //   }
+  // }, [selectedGenre, currentSort]);
 
   // Validate current page is within bounds (only after data is loaded)
-  useEffect(() => {
-    if (!loading && currentPage > totalPages && totalPages > 0) {
-      const correctedPage = Math.max(1, totalPages);
-      setCurrentPage(correctedPage);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('currentPage', correctedPage.toString());
-        // Also update URL to reflect the correction
-        const url = new URL(window.location.href);
-        url.searchParams.set('page', correctedPage.toString());
-        window.history.replaceState({}, '', url);
-      }
-    }
-  }, [totalPages, currentPage, loading]);
+  // No longer needed since we're showing all content
+  // useEffect(() => {
+  //   if (!loading && currentPage > totalPages && totalPages > 0) {
+  //     const correctedPage = Math.max(1, totalPages);
+  //     setCurrentPage(correctedPage);
+  //     if (typeof window !== 'undefined') {
+  //       localStorage.setItem('currentPage', correctedPage.toString());
+  //       // Also update URL to reflect the correction
+  //       const url = new URL(window.location.href);
+  //       url.searchParams.set('page', correctedPage.toString());
+  //       window.history.replaceState({}, '', url);
+  //     }
+  //   }
+  // }, [totalPages, currentPage, loading]);
 
   // ============================================
   // DATA FETCHING CALLBACKS
@@ -625,68 +621,69 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     setIsPasswordDialogOpen(true);
   }, []);
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('currentPage', page.toString());
+  // Pagination handlers - no longer needed since we're showing all content
+  // const handlePageChange = useCallback((page: number) => {
+  //   setCurrentPage(page);
+  //   if (typeof window !== 'undefined') {
+  //     localStorage.setItem('currentPage', page.toString());
       
-      // Actualizar la URL sin recargar la página
-      const url = new URL(window.location.href);
-      url.searchParams.set('page', page.toString());
-      window.history.pushState({}, '', url);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  //     // Actualizar la URL sin recargar la página
+  //     const url = new URL(window.location.href);
+  //     url.searchParams.set('page', page.toString());
+  //     window.history.pushState({}, '', url);
+  //   }
+  //   window.scrollTo({ top: 0, behavior: 'smooth' });
+  // }, []);
 
-  const handlePreviousPage = useCallback(() => {
-    if (currentPage > 1) {
-      handlePageChange(currentPage - 1);
-    }
-  }, [currentPage, handlePageChange]);
+  // const handlePreviousPage = useCallback(() => {
+  //   if (currentPage > 1) {
+  //     handlePageChange(currentPage - 1);
+  //   }
+  // }, [currentPage, handlePageChange]);
 
-  const handleNextPage = useCallback(() => {
-    if (currentPage < totalPages) {
-      handlePageChange(currentPage + 1);
-    }
-  }, [currentPage, totalPages, handlePageChange]);
+  // const handleNextPage = useCallback(() => {
+  //   if (currentPage < totalPages) {
+  //     handlePageChange(currentPage + 1);
+  //   }
+  // }, [currentPage, totalPages, handlePageChange]);
 
   // ============================================
   // EFFECTS
   // ============================================
 
-  // Keyboard navigation for pagination
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Handle numeric keys 1-5 for direct page navigation
-      const key = parseInt(event.key);
-      if (key >= 1 && key <= 5 && key <= totalPages) {
-        event.preventDefault();
-        handlePageChange(key);
-        return;
-      }
+  // Keyboard navigation for pagination - no longer needed since we're showing all content
+  // useEffect(() => {
+  //   const handleKeyPress = (event: KeyboardEvent) => {
+  //     // Handle numeric keys 1-5 for direct page navigation
+  //     const key = parseInt(event.key);
+  //     if (key >= 1 && key <= 5 && key <= totalPages) {
+  //       event.preventDefault();
+  //       handlePageChange(key);
+  //       return;
+  //     }
 
-      // Handle arrow keys for previous/next navigation
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        handlePreviousPage();
-        return;
-      }
+  //     // Handle arrow keys for previous/next navigation
+  //     if (event.key === 'ArrowLeft') {
+  //       event.preventDefault();
+  //       handlePreviousPage();
+  //       return;
+  //     }
 
-      if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        handleNextPage();
-        return;
-      }
-    };
+  //     if (event.key === 'ArrowRight') {
+  //       event.preventDefault();
+  //       handleNextPage();
+  //       return;
+  //     }
+  //   };
 
-    // Add event listener
-    window.addEventListener('keydown', handleKeyPress);
+  //   // Add event listener
+  //   window.addEventListener('keydown', handleKeyPress);
 
-    // Cleanup
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [totalPages, handlePageChange, handlePreviousPage, handleNextPage]);
+  //   // Cleanup
+  //   return () => {
+  //     window.removeEventListener('keydown', handleKeyPress);
+  //   };
+  // }, [totalPages, handlePageChange, handlePreviousPage, handleNextPage]);
 
   // Initial data fetch (run once on mount; use dedicated ref so effect order cannot skip it)
   useEffect(() => {
@@ -852,7 +849,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                     items={paginatedLinks}
                     renderItem={(link: Link, index: number) => (
                       <LinkCard 
-                        key={`${link.id}-${currentPage}`} // Force remount on page change
+                        key={link.id} // Remove page dependency from key
                         link={link} 
                         onRemoved={handleLinkRemoved} 
                         index={index} 
@@ -860,13 +857,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                     )}
                     columns={4}
                     className="pb-2 md:pb-4 lg:pb-6"
-                  />
-                  <PaginationControls
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                    onPreviousPage={handlePreviousPage}
-                    onNextPage={handleNextPage}
                   />
                 </>
               )}

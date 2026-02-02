@@ -123,7 +123,11 @@ export default function LazyYouTubeEmbed({
     }
     setVideoInfo(null);
     setIsThumbnailLoaded(false);
-  }, [linkId, shouldPlay, isOwner, setIframeOwner]);
+    // Reset thumbnail state when video changes
+    setThumbnailError(false);
+    setCurrentThumbnailAttempt(0);
+    setThumbnailUrl(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
+  }, [linkId, shouldPlay, isOwner, setIframeOwner, videoId, thumbnailQuality]);
   
   // Use videoInfo title if available, otherwise use initialTitle (from link data)
   // Filter out URLs - if initialTitle is a URL, don't use it as display title
@@ -149,13 +153,28 @@ export default function LazyYouTubeEmbed({
   }
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
+  const [currentThumbnailAttempt, setCurrentThumbnailAttempt] = useState(0);
+
+  const thumbnailFallbacks = [
+    `${thumbnailQuality}.jpg`, // Original quality
+    'mqdefault.jpg',          // Medium quality
+    'default.jpg',            // Default quality
+    '0.jpg',                  // 480x360
+    '1.jpg',                  // 120x90
+    '2.jpg',                  // 120x90
+    '3.jpg',                  // 120x90
+  ];
 
   const handleThumbnailError = () => {
-    console.warn(`No se pudo cargar la miniatura para el video ${videoId}`);
-    setThumbnailError(true);
-    // Intenta con una calidad de miniatura diferente como respaldo
-    if (thumbnailQuality !== 'default') {
-      setThumbnailUrl(`https://i.ytimg.com/vi/${videoId}/default.jpg`);
+    console.warn(`No se pudo cargar la miniatura para el video ${videoId} (attempt ${currentThumbnailAttempt})`);
+    
+    const nextAttempt = currentThumbnailAttempt + 1;
+    if (nextAttempt < thumbnailFallbacks.length) {
+      setCurrentThumbnailAttempt(nextAttempt);
+      setThumbnailUrl(`https://i.ytimg.com/vi/${videoId}/${thumbnailFallbacks[nextAttempt]}`);
+    } else {
+      // Si todas las miniaturas fallan, marca como error
+      setThumbnailError(true);
     }
   };
 
@@ -328,7 +347,15 @@ export default function LazyYouTubeEmbed({
             />
           ) : (
             <div className="w-full h-full bg-gray-800 flex items-center justify-center">
-              <span className="text-gray-400 text-sm">Miniatura no disponible</span>
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-2">
+                  <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
+                <span className="text-gray-400 text-sm">Miniatura no disponible</span>
+                <p className="text-gray-500 text-xs mt-1">Video ID: {videoId}</p>
+              </div>
             </div>
           )}
 
