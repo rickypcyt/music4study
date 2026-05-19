@@ -2,11 +2,11 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Pin, Plus } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import CachedEmbed from './embeds/CachedEmbed';
-import { Plus } from "lucide-react";
 import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
 import { fetchAndStoreTitle } from "@/lib/fetchAndStoreTitles";
 import { supabase } from "@/lib/supabase";
