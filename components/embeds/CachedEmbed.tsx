@@ -39,6 +39,8 @@ export default function CachedEmbed({
   const embedRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
+  const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+
   // Persist last played timestamp per linkId in localStorage
   const recordLastPlayed = () => {
     try {
@@ -51,6 +53,9 @@ export default function CachedEmbed({
   };
 
   useEffect(() => {
+    // Skip embed loading for YouTube — rendered directly via LazyYouTubeEmbed
+    if (isYouTube) return;
+
     let mounted = true;
 
     const loadEmbed = async () => {
@@ -107,7 +112,26 @@ export default function CachedEmbed({
         observerRef.current = null;
       }
     };
-  }, [url, onLoad, onError]);
+  }, [url, onLoad, onError, isYouTube]);
+
+  // For YouTube URLs, render LazyYouTubeEmbed directly (after hooks)
+  if (isYouTube) {
+    const videoId = extractYouTubeId(url);
+    if (videoId) {
+      return (
+        <LazyYouTubeEmbed
+          videoId={videoId}
+          title={initialTitle || url}
+          linkId={linkId}
+          className={className}
+          onUnavailable={onUnavailable}
+          onTitleFetched={onTitleFetched}
+          onVideoClick={onVideoClick}
+          priority={priority}
+        />
+      );
+    }
+  }
 
   const handleThumbnailClick = () => {
     recordLastPlayed();
@@ -184,25 +208,6 @@ export default function CachedEmbed({
     );
   }
 
-  // For YouTube videos, use LazyYouTubeEmbed
-  if (url.includes('youtube.com') || url.includes('youtu.be')) {
-    const videoId = extractYouTubeId(url);
-    if (videoId) {
-      return (
-        <LazyYouTubeEmbed
-          videoId={videoId}
-          title={initialTitle || url}
-          linkId={linkId}
-          className={className}
-          onUnavailable={onUnavailable}
-          onTitleFetched={onTitleFetched}
-          onVideoClick={onVideoClick}
-          priority={priority}
-        />
-      );
-    }
-  }
-
   return (
     <div 
       ref={embedRef}
@@ -210,4 +215,4 @@ export default function CachedEmbed({
       dangerouslySetInnerHTML={{ __html: embedData?.html || '' }}
     />
   );
-} 
+}

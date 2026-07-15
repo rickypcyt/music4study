@@ -158,9 +158,22 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
   // Process each batch
   for (const batch of batches) {
     try {
-      const response = await fetch(
-        `/api/youtube-info-batch?videoIds=${batch.join(',')}`
-      );
+      let response: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          response = await fetch(
+            `/api/youtube-info-batch?videoIds=${batch.join(',')}`
+          );
+          break;
+        } catch (fetchErr) {
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            continue;
+          }
+          throw fetchErr;
+        }
+      }
+      if (!response) continue;
 
       if (!response.ok) {
         console.warn('Failed to fetch batch of video titles:', response.status);
@@ -220,7 +233,11 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
       // Wait for all updates to complete
       await Promise.allSettled(updatePromises);
     } catch (error) {
-      console.error('Error fetching/updating video titles:', error);
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.warn('Network error fetching video titles (will retry on next load)');
+      } else {
+        console.error('Error fetching/updating video titles:', error);
+      }
       // Continue with next batch even if this one fails
     }
   }

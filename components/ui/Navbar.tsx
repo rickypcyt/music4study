@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Home, Layers, Menu, Tags, X } from 'lucide-react';
+import { ArrowUpDown, Home, Menu, Tags, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,6 @@ interface NavbarProps {
   onGenresClick: () => void;
   onHomeClick: () => void;
   onSubmitClick: () => void;
-  onCombinationsClick: () => void;
   onSortChange: (sort: string) => void;
   currentSort: string;
   onThemeChange: (theme: string) => void;
@@ -30,7 +29,6 @@ export default function Navbar({
   onGenresClick,
   onHomeClick,
   onSubmitClick,
-  onCombinationsClick,
   onSortChange,
   currentSort,
   onThemeChange,
@@ -116,24 +114,6 @@ export default function Navbar({
       >
         <Tags className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
         <span>Genres</span>
-      </Link>
-      <Link
-        href="/"
-        onClick={(e) => {
-          e.preventDefault();
-          handleNavigation('combinations', () => {
-            onCombinationsClick();
-            setIsMobileMenuOpen(false);
-          });
-        }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
-          currentView === 'combinations'
-            ? 'border-primary text-foreground'
-            : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
-        } ${isNavigating ? 'opacity-70' : ''}`}
-      >
-        <Layers className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
-        <span>Combinations</span>
       </Link>
     </>
   );

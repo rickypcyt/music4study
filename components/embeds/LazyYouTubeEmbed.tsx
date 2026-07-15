@@ -2,20 +2,11 @@
 
 import '@/lib/suppressConsoleWarnings';
 
-import { checkVideoAvailability, removeUnavailableVideo } from '@/lib/videoAvailability';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
 import { useAudio } from '@/contexts/AudioContext';
 import { useIframeTarget } from '@/contexts/IframeTargetContext';
-import { youtubeCache } from '@/lib/youtubeCache';
-
-// Extend window interface for debug logging
-declare global {
-  interface Window {
-    __youtubeTitleLogged?: Set<string>;
-  }
-}
 
 interface LazyYouTubeEmbedProps {
   videoId: string;
@@ -29,25 +20,17 @@ interface LazyYouTubeEmbedProps {
   priority?: boolean; // For LCP images above the fold
 }
 
-interface VideoInfo {
-  title: string;
-  channelTitle: string;
-}
-
 export default function LazyYouTubeEmbed({ 
   videoId, 
   title: initialTitle,
   linkId,
   className = '',
   thumbnailQuality = 'hqdefault',
-  onUnavailable,
-  onTitleFetched,
   onVideoClick,
   priority = false
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isThumbnailLoaded, setIsThumbnailLoaded] = useState(false);
-  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [showPlayer, setShowPlayer] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
@@ -121,7 +104,6 @@ export default function LazyYouTubeEmbed({
       }
       if (isOwner) setIframeOwner(null);
     }
-    setVideoInfo(null);
     setIsThumbnailLoaded(false);
     // Reset thumbnail state when video changes
     setThumbnailError(false);
@@ -129,28 +111,16 @@ export default function LazyYouTubeEmbed({
     setThumbnailUrl(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   }, [linkId, shouldPlay, isOwner, setIframeOwner, videoId, thumbnailQuality]);
   
-  // Use videoInfo title if available, otherwise use initialTitle (from link data)
-  // Filter out URLs - if initialTitle is a URL, don't use it as display title
   const isValidTitle = (title: string | undefined): boolean => {
     if (!title || !title.trim()) return false;
-    // Don't use URL as title
     if (title.includes('youtube.com') || title.includes('youtu.be') || title.startsWith('http')) {
       return false;
     }
     return true;
   };
   
-  const displayTitle = videoInfo?.title || (isValidTitle(initialTitle) ? initialTitle : '');
+  const displayTitle = isValidTitle(initialTitle) ? initialTitle : '';
   
-  // Debug in development - only log if we actually have missing data
-  if (process.env.NODE_ENV === 'development' && !displayTitle && videoId) {
-    // Only log once per videoId to reduce spam
-    if (!window.__youtubeTitleLogged?.has(videoId)) {
-      window.__youtubeTitleLogged = window.__youtubeTitleLogged || new Set();
-      window.__youtubeTitleLogged.add(videoId);
-      console.log('LazyYouTubeEmbed: No title available', { videoId, initialTitle, videoInfo, displayTitle });
-    }
-  }
   const [thumbnailError, setThumbnailError] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   const [currentThumbnailAttempt, setCurrentThumbnailAttempt] = useState(0);
@@ -178,126 +148,6 @@ export default function LazyYouTubeEmbed({
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
-    
-    // Fetch video info immediately on mount (don't wait for availability check)
-    const fetchVideoInfo = async () => {
-      // Check cache first
-      const cached = youtubeCache.get(videoId);
-      if (cached) {
-        if (isMounted) {
-          setVideoInfo({
-            title: cached.title,
-            channelTitle: cached.channelTitle || ''
-          });
-          if (onTitleFetched) {
-            onTitleFetched(cached.title, cached.channelTitle);
-          }
-        }
-        return;
-      }
-
-      // Check if there's already a pending request for this video (deduplication)
-      const pendingRequest = youtubeCache.getPendingRequest(videoId);
-      if (pendingRequest) {
-        try {
-          const cached = await pendingRequest;
-          if (isMounted && cached) {
-            setVideoInfo({
-              title: cached.title,
-              channelTitle: cached.channelTitle || ''
-            });
-            if (onTitleFetched) {
-              onTitleFetched(cached.title, cached.channelTitle);
-            }
-          }
-        } catch {
-          // If pending request fails, continue to make new request
-        }
-        return;
-      }
-
-      // Create new fetch request
-      const fetchPromise = (async () => {
-        try {
-          const response = await fetch(`/api/youtube-info?videoId=${videoId}`);
-          if (!response.ok) {
-            // Silently fail if API is not configured or unavailable
-            if (response.status === 500) {
-              return null;
-            }
-            // For other errors, log in development only
-            if (process.env.NODE_ENV === 'development') {
-              const errorData = await response.json().catch(() => null);
-              if (errorData?.error) {
-                console.warn('YouTube API:', errorData.error);
-              }
-            }
-            return null;
-          }
-          const data = await response.json();
-          if (data.title) {
-            // Cache the result
-            youtubeCache.set(videoId, data.title, data.channelTitle || '');
-            return {
-              title: data.title,
-              channelTitle: data.channelTitle || '',
-              cachedAt: Date.now()
-            };
-          }
-          return null;
-        } catch (err) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Error fetching video info:', err instanceof Error ? err.message : 'Unknown error');
-          }
-          return null;
-        }
-      })();
-
-      // Register pending request for deduplication
-      youtubeCache.setPendingRequest(videoId, fetchPromise);
-
-      // Wait for result and update state
-      const result = await fetchPromise;
-      if (isMounted && result) {
-        setVideoInfo({
-          title: result.title,
-          channelTitle: result.channelTitle || ''
-        });
-        if (onTitleFetched) {
-          onTitleFetched(result.title, result.channelTitle);
-        }
-      }
-    };
-
-    // Start fetching video info immediately
-    fetchVideoInfo();
-
-    // Check availability in parallel
-    const checkAvailability = async () => {
-      try {
-        const { isAvailable } = await checkVideoAvailability(videoId);
-        if (!isMounted) return;
-        
-        if (!isAvailable) {
-          // Mark as load error (will show "Video Unavailable")
-          await removeUnavailableVideo(linkId);
-          onUnavailable?.();
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.error('Error checking video availability:', err instanceof Error ? err.message : 'Unknown error');
-        }
-      }
-    };
-
-    checkAvailability();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [videoId, linkId, onUnavailable, onTitleFetched]);
 
   // Slot cuando somos owner o recién clickeamos (un solo click para empezar)
   const showSlot = isLoaded && (isOwner || justClaimedOwnerRef.current);
@@ -335,7 +185,7 @@ export default function LazyYouTubeEmbed({
           {!thumbnailError ? (
             <Image
               src={thumbnailUrl}
-              alt={videoInfo?.title || initialTitle || 'Miniatura del video'}
+              alt={displayTitle || 'Miniatura del video'}
               className={`w-full h-full object-cover ${isThumbnailLoaded ? 'opacity-100' : 'opacity-0'}`}
               width={480}
               height={360}

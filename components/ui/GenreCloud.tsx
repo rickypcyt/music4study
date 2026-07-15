@@ -1,8 +1,15 @@
 'use client';
 
-import * as d3 from 'd3';
-
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+function scaleSqrt(domain: [number, number], range: [number, number]) {
+  const [d0, d1] = domain;
+  const [r0, r1] = range;
+  return (value: number) => {
+    const t = Math.sqrt((value - d0) / (d1 - d0 || 1));
+    return r0 + t * (r1 - r0);
+  };
+}
 
 interface Tag {
   value: string;
@@ -23,9 +30,10 @@ interface Node {
 interface GenreCloudProps {
   tags: Tag[];
   onGenreClick: (genre: string) => void;
+  isActive?: boolean;
 }
 
-export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
+export default function GenreCloud({ tags, onGenreClick, isActive = true }: GenreCloudProps) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | undefined>(undefined);
@@ -53,9 +61,10 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
       ? Math.max(40, maxTextLength * 3)
       : Math.max(60, maxTextLength * 4);
     
-    return d3.scaleSqrt()
-      .domain([min, max])
-      .range([minSize, Math.max(minSize * 1.2, config.isMobile ? 80 : 100)]);
+    return scaleSqrt(
+      [min, max],
+      [minSize, Math.max(minSize * 1.2, config.isMobile ? 80 : 100)]
+    );
   }, [tags, config.isMobile]);
 
   // Función optimizada para validar posiciones
@@ -224,9 +233,9 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
     animationFrameRef.current = requestAnimationFrame(animate);
   }, [config]);
 
-  // Iniciar/detener animación
+  // Iniciar/detener animación — pausar cuando no está activo
   useEffect(() => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || !isActive) return;
 
     animationFrameRef.current = requestAnimationFrame(animate);
 
@@ -235,7 +244,7 @@ export default function GenreCloud({ tags, onGenreClick }: GenreCloudProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [nodes.length, animate]);
+  }, [nodes.length, animate, isActive]);
 
   // Handlers de hover optimizados
   const handleMouseEnter = useCallback((nodeId: string) => {

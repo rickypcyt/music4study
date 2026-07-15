@@ -15,8 +15,6 @@ import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
 import SimpleGrid from '@/components/ui/SimpleGrid';
 import SubmitForm from './submit/SubmitForm';
-import ViewTransition from '@/components/ui/ViewTransition';
-import { getGenres } from './genres/actions';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -144,7 +142,6 @@ const normalizeGenre = (genre: string): string => {
 
 const getInitialView = (pathname: string): ViewType => {
   if (pathname === '/genres') return 'genres';
-  if (pathname === '/combinations') return 'combinations';
   return 'home';
 };
 
@@ -216,7 +213,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   // State
   const [currentView, setCurrentView] = useState<ViewType>(() => getInitialView(pathname));
   const [allLinks, setAllLinks] = useState<Link[]>([]);
-  const [genres, setGenres] = useState<{ value: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -232,13 +228,20 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   // Refs
   const isInitialLoadRef = useRef(true);
   const hasInitialFetchRunRef = useRef(false);
-  const genresCacheRef = useRef<{ value: string; count: number }[]>([]);
 
   const selectedGenre = searchParams.get('genre');
 
   // ============================================
   // MEMOIZED VALUES
   // ============================================
+  const genres = useMemo(() => {
+    const genreCounts = allLinks.reduce((acc: Record<string, number>, link) => {
+      acc[link.genre] = (acc[link.genre] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(genreCounts).map(([value, count]) => ({ value, count }));
+  }, [allLinks]);
+
   const filteredAndSortedLinks = useMemo(() => {
     if (!selectedGenre) return sortLinks(allLinks, currentSort);
     
@@ -286,21 +289,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   // ============================================
   // DATA FETCHING CALLBACKS
   // ============================================
-  const fetchGenres = useCallback(async () => {
-    try {
-      const genresData = await getGenres();
-      genresCacheRef.current = genresData;
-      setGenres(genresData);
-    } catch (err) {
-      console.error('Error fetching genres:', err);
-      toast({
-        title: "Error",
-        description: "Failed to load genres. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
-
   const fetchTitlesInBackground = useCallback(async (links: Link[]) => {
     if (links.length === 0) return;
     
@@ -313,8 +301,10 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     };
 
     scheduleUpdate(async () => {
+      const tt0 = performance.now();
       try {
         await fetchAndStoreTitles(links);
+        console.log(`[perf] fetchAndStoreTitles: ${Math.round(performance.now() - tt0)}ms for ${links.length} links`);
 
         // Only update links that still need titles and weren't recently updated
         const youtubeLinksWithoutTitles = links.filter(link => {
@@ -375,29 +365,35 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   }, [currentPage]);
 
   const fetchLinksData = useCallback(async (useCache: boolean = true) => {
+    const t0 = performance.now();
     try {
       // Try cache first if requested
       if (useCache) {
         const cachedData = CacheManager.get();
         if (cachedData?.links) {
+          console.log(`[perf] cache hit: ${cachedData.links.length} links, ${Math.round(performance.now() - t0)}ms`);
           setAllLinks(cachedData.links);
-          // Don't restore page from cache - localStorage has priority
           setLoading(false);
           // Fetch fresh data in background
           fetchLinksData(false);
           return;
         }
+        console.log('[perf] cache miss, fetching from Supabase');
       }
 
+      const t1 = performance.now();
       const { data, error } = await supabase
         .from('links')
         .select('*')
         .order('date_added', { ascending: false });
+      console.log(`[perf] supabase query: ${Math.round(performance.now() - t1)}ms, ${data?.length ?? 0} rows`);
 
       if (error) throw error;
       
       if (data) {
+        const t2 = performance.now();
         setAllLinks(data);
+        console.log(`[perf] setAllLinks render: ${Math.round(performance.now() - t2)}ms`);
         const calculatedTotalPages = Math.ceil(data.length / CARDS_PER_PAGE);
         CacheManager.save(data, currentPage, calculatedTotalPages);
         
@@ -413,6 +409,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     } finally {
       if (useCache) {
         setLoading(false);
+        console.log(`[perf] total fetchLinksData: ${Math.round(performance.now() - t0)}ms`);
       }
     }
   }, [fetchTitlesInBackground, currentPage]);
@@ -489,12 +486,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const handleGenresClick = useCallback(() => {
     const params = new URLSearchParams();
     params.set('view', 'genres');
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [router]);
-
-  const handleCombinationsClick = useCallback(() => {
-    const params = new URLSearchParams();
-    params.set('view', 'combinations');
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router]);
 
@@ -694,17 +685,12 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     isInitialLoadRef.current = false;
   }, [fetchLinksData]);
 
-  // Fetch genres on mount
-  useEffect(() => {
-    fetchGenres();
-  }, [fetchGenres]);
-
   // Update view from search params
   useEffect(() => {
     const view = searchParams.get('view');
     if (searchParams.has('genre')) {
       setCurrentView('home');
-    } else if (view === 'genres' || view === 'combinations') {
+    } else if (view === 'genres') {
       setCurrentView(view);
     } else {
       setCurrentView('home');
@@ -761,7 +747,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         onGenresClick={handleGenresClick}
         onHomeClick={handleHomeClick}
         onSubmitClick={handleSubmitClick}
-        onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
         onThemeChange={setCurrentTheme}
@@ -769,65 +754,22 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       />
       
       <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col">
-        <ViewTransition viewKey={currentView} className="flex-1 flex flex-col">
-          {currentView === 'genres' ? (
-            <div className="flex flex-col space-y-8">
-              <div className="text-center">
-                <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
-                <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
-                  Explore music by genre. Each genre has its own unique characteristics and mood.
-                </p>
-              </div>
-              <GenreCloud 
-                tags={genres} 
-                onGenreClick={handleGenreClick}
-              />
+          {/* Genres view — always mounted, hidden when not active */}
+          <div className={currentView === 'genres' ? 'flex flex-col space-y-8' : 'hidden'}>
+            <div className="text-center">
+              <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
+              <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
+                Explore music by genre. Each genre has its own unique characteristics and mood.
+              </p>
             </div>
-          ) : currentView === 'combinations' ? (
-            <div className="space-y-8">
-              <div className="text-center space-y-2">
-                <h2 className="text-5xl font-serif text-foreground">Combinations</h2>
-                <p className="text-foreground/70 text-lg max-w-3xl mx-auto">
-                  Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
-                </p>
-              </div>
-              
-              <div className="flex justify-center">
-                <Button
-                  onClick={() => setIsCreateCombinationModalOpen(true)}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 py-6"
-                >
-                  Create Combination
-                </Button>
-              </div>
-              
-              <div className="space-y-8">
-                {combinations.length === 0 && !loading ? (
-                  <div className="text-center py-12">
-                    <p className="text-foreground/70">No combinations yet. Create your first one!</p>
-                  </div>
-                ) : (
-                  combinations.map((combination) => (
-                    <div key={combination.id} className="space-y-4 p-6 border border-foreground/10 rounded-lg">
-                      <h3 className="text-2xl font-serif text-foreground">
-                        {combination.name}
-                      </h3>
-                      {combination.links.length > 0 ? (
-                        <SimpleGrid
-                          items={combination.links}
-                          renderItem={(link: Link) => <LinkCard key={`combo-${combination.id}-${link.id}`} link={link} />}
-                          columns={4}
-                        />
-                      ) : (
-                        <p className="text-foreground/70">No tracks in this combination yet.</p>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col">
+            <GenreCloud 
+              tags={genres} 
+              onGenreClick={handleGenreClick}
+              isActive={currentView === 'genres'}
+            />
+          </div>
+          {/* Home view — always mounted, hidden when not active */}
+          <div className={currentView === 'home' ? 'flex-1 flex flex-col' : 'hidden'}>
               {selectedGenre && (
                 <div className="text-center mb-8 pt-6">
                   <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">
@@ -849,7 +791,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                     items={paginatedLinks}
                     renderItem={(link: Link, index: number) => (
                       <LinkCard 
-                        key={link.id} // Remove page dependency from key
+                        key={link.id}
                         link={link} 
                         onRemoved={handleLinkRemoved} 
                         index={index} 
@@ -860,9 +802,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                   />
                 </>
               )}
-            </div>
-          )}
-        </ViewTransition>
+          </div>
       </main>
 
       {/* Submit Modal */}
