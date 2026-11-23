@@ -127,14 +127,11 @@ export default function LazyYouTubeEmbed({
   const [thumbnailUrl, setThumbnailUrl] = useState(`https://i.ytimg.com/vi/${videoId}/${thumbnailQuality}.jpg`);
   const [currentThumbnailAttempt, setCurrentThumbnailAttempt] = useState(0);
 
+  // Solo 3 intentos: si i.ytimg.com no responde (404, proxy, red), insistir con más variantes solo añade ruido
   const thumbnailFallbacks = [
-    `${thumbnailQuality}.jpg`, // Original quality
-    'mqdefault.jpg',          // Medium quality
-    'default.jpg',            // Default quality
-    '0.jpg',                  // 480x360
-    '1.jpg',                  // 120x90
-    '2.jpg',                  // 120x90
-    '3.jpg',                  // 120x90
+    `${thumbnailQuality}.jpg`, // Calidad pedida
+    'mqdefault.jpg',          // Media
+    'default.jpg',            // Mínima
   ];
 
   /** Pide al servidor comprobar el video; si no existe lo borra de la BD y de la UI. */

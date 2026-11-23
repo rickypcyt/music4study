@@ -8,6 +8,8 @@ import * as schema from '@/db/auth-schema';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg', schema }),
+  // Sesión en cookie firmada: evita una consulta a la base de datos en cada petición
+  session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
   // username solo lo escribe el servidor (/api/me/username), nunca el cliente directamente
   user: {
     additionalFields: {

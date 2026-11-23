@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitles';
 import dynamic from 'next/dynamic';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
@@ -13,11 +13,13 @@ import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
+import Landing from '@/components/landing/Landing';
 import ProfileModal from '@/components/ui/ProfileModal';
 import UsernameModal from '@/components/ui/UsernameModal';
 import SimpleGrid from '@/components/ui/SimpleGrid';
-import { createCombination, fetchAllLinks, fetchCombinations as fetchCombinationsApi, fetchLinkById, fetchLinksByIds } from '@/lib/dataApi';
+import { createCombination, fetchAutoLinks, fetchCombinations as fetchCombinationsApi, fetchLinkById, fetchLinksByIds } from '@/lib/dataApi';
 import { authClient } from '@/lib/auth-client';
+import { pushUrl, replaceUrl } from '@/lib/urlState';
 import { useToast } from '@/components/hooks/use-toast';
 
 const GenreCloud = dynamic(() => import('@/components/ui/GenreCloud'), { ssr: false });
@@ -43,6 +45,10 @@ const MAX_CACHE_SIZE = 1000;
 const CACHE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const MAX_STORAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const CACHE_KEY = 'music4study_links_cache';
+// La caché es por cuenta (o 'anon'): así nunca se mezclan los tracks de una sesión con otra
+let cacheScope = 'anon';
+const SCOPE_KEY = 'music4study_last_scope';
+const cacheKey = () => `${CACHE_KEY}_${cacheScope}`;
 const CARDS_PER_PAGE = 8;
 
 // ============================================
@@ -103,14 +109,14 @@ const CacheManager = {
           currentPage,
           totalPages
         };
-        localStorage.setItem(CACHE_KEY, JSON.stringify(smallerCache));
+        localStorage.setItem(cacheKey(), JSON.stringify(smallerCache));
       } else {
-        localStorage.setItem(CACHE_KEY, cacheString);
+        localStorage.setItem(cacheKey(), cacheString);
       }
     } catch (error) {
       console.warn('Error saving to cache:', error);
       try {
-        localStorage.removeItem(CACHE_KEY);
+        localStorage.removeItem(cacheKey());
       } catch (e) {
         console.error('Failed to clear cache:', e);
       }
@@ -120,7 +126,7 @@ const CacheManager = {
   get: (): LinksCache | null => {
     if (typeof window === 'undefined') return null;
     
-    const cached = localStorage.getItem(CACHE_KEY);
+    const cached = localStorage.getItem(cacheKey());
     if (!cached) return null;
     
     try {
@@ -206,7 +212,6 @@ interface HomeContentProps {
 function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const router = useRouter();
   const { toast } = useToast();
 
   // Usar searchParams del hook o los props iniciales
@@ -237,6 +242,8 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   // Refs
   const isInitialLoadRef = useRef(true);
   const hasInitialFetchRunRef = useRef(false);
+  // Ámbito ('anon' o id de usuario) de los links que hay ahora en pantalla
+  const lastFetchedScopeRef = useRef<string | null>(null);
 
   const selectedGenre = searchParams.get('genre');
 
@@ -388,7 +395,11 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       }
 
       const t1 = performance.now();
-      const { data, error } = await fetchAllLinks();
+      // Una sola petición que el servidor resuelve según la cookie de sesión (no espera al cliente)
+      const { data, error, scope: loadedScope } = await fetchAutoLinks();
+      cacheScope = loadedScope;
+      lastFetchedScopeRef.current = loadedScope;
+      try { localStorage.setItem(SCOPE_KEY, loadedScope); } catch {}
       console.log(`[perf] links query: ${Math.round(performance.now() - t1)}ms, ${data?.length ?? 0} rows`);
 
       if (error) throw error;
@@ -446,24 +457,24 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('genre', genre);
     params.delete('view');
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    replaceUrl(`/?${params.toString()}`);
+  }, [searchParams]);
 
   const handleHomeClick = useCallback(() => {
-    router.replace('/', { scroll: false });
-  }, [router]);
+    replaceUrl('/');
+  }, []);
 
   const handleGenresClick = useCallback(() => {
     const params = new URLSearchParams();
     params.set('view', 'genres');
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [router]);
+    replaceUrl(`/?${params.toString()}`);
+  }, []);
 
   const handleCombinationsClick = useCallback(() => {
     const params = new URLSearchParams();
     params.set('view', 'combinations');
-    router.replace(`/?${params.toString()}`, { scroll: false });
-  }, [router]);
+    replaceUrl(`/?${params.toString()}`);
+  }, []);
 
   const handleSortChange = useCallback((sortBy: string) => {
     const newSort = sortBy as SortType;
@@ -472,8 +483,8 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set('sort', newSort);
-    router.push(`/?${newParams.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    pushUrl(`/?${newParams.toString()}`);
+  }, [searchParams]);
 
   const handleGoogleLogin = useCallback(async () => {
     try {
@@ -490,6 +501,10 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   }, [toast]);
 
   const handleLogout = useCallback(async () => {
+    // No dejar la biblioteca de esta cuenta en el navegador
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith(CACHE_KEY) || k === SCOPE_KEY).forEach((k) => localStorage.removeItem(k));
+    } catch {}
     await authClient.signOut();
   }, []);
 
@@ -646,14 +661,35 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   //   };
   // }, [totalPages, handlePageChange, handlePreviousPage, handleNextPage]);
 
-  // Initial data fetch (run once on mount; use dedicated ref so effect order cannot skip it)
+  // 1) Al montar: pinta al instante la caché de la última sesión y pide datos frescos SIN esperar a la sesión.
   useEffect(() => {
     if (hasInitialFetchRunRef.current) return;
     hasInitialFetchRunRef.current = true;
+    try {
+      cacheScope = localStorage.getItem(SCOPE_KEY) ?? 'anon';
+    } catch {}
+    const cached = CacheManager.get();
+    if (cached?.links) {
+      lastFetchedScopeRef.current = cacheScope;
+      setAllLinks(cached.links);
+      setLoading(false);
+    }
     setError(null);
-    fetchLinksData(true);
+    fetchLinksData(!cached?.links);
     isInitialLoadRef.current = false;
   }, [fetchLinksData]);
+
+  // 2) Si la sesión resuelta no coincide con lo que hay en pantalla (login / logout), recarga.
+  const sessionUserId = session?.user?.id ?? null;
+  useEffect(() => {
+    if (isSessionPending || !hasInitialFetchRunRef.current) return;
+    const scope = sessionUserId ?? 'anon';
+    if (lastFetchedScopeRef.current === null || lastFetchedScopeRef.current === scope) return;
+    lastFetchedScopeRef.current = scope;
+    setAllLinks([]);
+    setLoading(true);
+    fetchLinksData(false).finally(() => setLoading(false));
+  }, [isSessionPending, sessionUserId, fetchLinksData]);
 
   // Update view from search params
   useEffect(() => {
@@ -791,6 +827,23 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
               ? 'flex-1 flex flex-col'
               : 'fixed top-0 left-[-200vw] w-screen h-screen overflow-hidden pointer-events-none'}
           >
+              {/* Landing para quien no ha iniciado sesión */}
+              {!isSessionPending && !session?.user && !selectedGenre && (
+                <div className="pt-6">
+                  <Landing onSignIn={() => setIsLoginModalOpen(true)} />
+                </div>
+              )}
+
+              {/* Biblioteca vacía (con sesión) */}
+              {!isSessionPending && session?.user && !loading && allLinks.length === 0 && (
+                <div className="text-center py-16 space-y-4">
+                  <p className="text-foreground/70 text-lg">Your library is empty. Submit your first track!</p>
+                  <Button onClick={handleSubmitClick} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    Submit Track
+                  </Button>
+                </div>
+              )}
+
               {selectedGenre && (
                 <div className="text-center mb-8 pt-6">
                   <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">
@@ -828,7 +881,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
       {/* Submit Modal */}
       <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
+        <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10 w-[calc(100%-1rem)] sm:w-full sm:max-w-[560px] max-h-[90dvh] overflow-hidden grid-rows-[auto_minmax(0,1fr)] p-4 sm:p-6">
           <DialogDescription id="submit-dialog-description" className="sr-only">
             Formulario para enviar un nuevo enlace de música
           </DialogDescription>
@@ -839,7 +892,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
             onClose={() => setIsSubmitModalOpen(false)} 
             genres={genres} 
             onNewLinkAdded={handleNewLinkAdded}
-            username="Guest"
             onSuccess={handleSubmitSuccess}
           />
         </DialogContent>
@@ -848,7 +900,11 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       {/* Username obligatorio tras el primer login */}
       <UsernameModal
         open={needsUsername}
-        onSaved={() => authClient.$store.notify('$sessionSignal')}
+        onSaved={async () => {
+          // La sesión va en cookie cacheada: forzar lectura fresca para ver el username nuevo
+          await authClient.getSession({ query: { disableCookieCache: true } });
+          authClient.$store.notify('$sessionSignal');
+        }}
         onSignOut={handleLogout}
       />
 

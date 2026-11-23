@@ -1,20 +1,15 @@
 'use client';
 
-import { Check, Pencil, Plus, X } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ClipboardPaste, Loader2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import GenreCards from '@/components/ui/GenreCards';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { createLink } from '@/lib/dataApi';
-import { useState } from 'react';
+import { extractYouTubeId } from '@/lib/youtubeId';
 import { useToast } from '@/components/hooks/use-toast';
-
-// Type guard to safely check for an error code without using `any`
-const hasStringCode = (e: unknown): e is { code: string } => {
-    if (typeof e !== 'object' || e === null) return false;
-    const rec = e as Record<string, unknown>;
-    return typeof rec.code === 'string';
-};
 
 interface Link {
     id: string;
@@ -24,395 +19,304 @@ interface Link {
     date_added: string;
     type: string;
     username: string;
-    titleConfirmedAt?: string; // Timestamp when title was last confirmed
-}
-
-interface FormErrors {
-    url: string | null;
-    type: string | null;
-    genre: string | null;
+    titleConfirmedAt?: string;
 }
 
 interface SubmitFormProps {
     onClose: () => void;
     genres: { value: string; count: number }[];
     onNewLinkAdded?: (newLink: Link) => void;
-    username: string;
     onSuccess: () => void;
 }
 
-const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres, onNewLinkAdded, username, onSuccess }) => {
+type Platform = 'youtube' | 'spotify' | 'soundcloud';
+
+const PLATFORM_LABEL: Record<Platform, string> = { youtube: 'YouTube', spotify: 'Spotify', soundcloud: 'SoundCloud' };
+const TYPE_OPTIONS = ['Mix', 'Video', 'Song', 'Set', 'Album'];
+
+function detectPlatform(raw: string): Platform | null {
+    let url: URL;
+    try {
+        url = new URL(raw.trim());
+    } catch {
+        return null;
+    }
+    if (!/^https?:$/.test(url.protocol)) return null;
+    const host = url.hostname.replace(/^www\./, '').replace(/^m\./, '');
+    if (host === 'youtu.be' || host.endsWith('youtube.com')) return extractYouTubeId(url.href) ? 'youtube' : null;
+    if (host === 'open.spotify.com') return /^\/(intl-[a-z]+\/)?(track|album|playlist|episode|show|artist)\//.test(url.pathname) ? 'spotify' : null;
+    if (host === 'soundcloud.com' || host === 'on.soundcloud.com') return 'soundcloud';
+    return null;
+}
+
+interface Preview {
+    status: 'idle' | 'loading' | 'ok' | 'missing';
+    title?: string;
+    channel?: string;
+}
+
+const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres, onNewLinkAdded, onSuccess }) => {
     const { toast } = useToast();
-    const [formData, setFormData] = useState({
-        url: '',
-        type: '',
-        genre: ''
-    });
-    const [customTypeMode, setCustomTypeMode] = useState(false);
-    const [customTypeValue, setCustomTypeValue] = useState('');
-    const [customGenreMode, setCustomGenreMode] = useState(false);
-    const [customGenreValue, setCustomGenreValue] = useState('');
+    const [url, setUrl] = useState('');
+    const [type, setType] = useState('');
+    const [customType, setCustomType] = useState(false);
+    const [genre, setGenre] = useState('');
     const [genres, setGenres] = useState(initialGenres);
-    const [errors, setErrors] = useState<FormErrors>({ 
-        url: null, 
-        type: null, 
-        genre: null 
-    });
+    const [touched, setTouched] = useState(false);
+    const [serverUrlError, setServerUrlError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [preview, setPreview] = useState<Preview>({ status: 'idle' });
+    const urlRef = useRef<HTMLInputElement>(null);
 
-    const isValidUrl = (url: string): boolean => {
-        try {
-            new URL(url);
-            return true;
-        } catch {
-            return false;
+    const platform = useMemo(() => detectPlatform(url), [url]);
+    const videoId = platform === 'youtube' ? extractYouTubeId(url.trim()) : null;
+
+    // Vista previa de YouTube (título + canal) y comprobación de que el video existe
+    useEffect(() => {
+        setServerUrlError(null);
+        if (!videoId) {
+            setPreview({ status: 'idle' });
+            return;
         }
-    };
-
-    const handleGenreSelect = (genre: string): void => {
-        setFormData(prev => ({
-            ...prev,
-            genre
-        }));
-        setErrors(prev => ({
-            ...prev,
-            genre: null
-        }));
-    };
-
-    const validateForm = () => {
-        const newErrors: FormErrors = {
-            url: !formData.url
-                ? 'URL is required'
-                : !isValidUrl(formData.url)
-                    ? 'Please enter a valid URL'
-                    : null,
-            type: !formData.type ? 'Type is required' : null,
-            genre: !formData.genre ? 'Genre is required' : null
+        setPreview({ status: 'loading' });
+        const ctrl = new AbortController();
+        const t = setTimeout(() => {
+            fetch(`/api/youtube-info?videoId=${encodeURIComponent(videoId)}`, { signal: ctrl.signal })
+                .then(async (r) => {
+                    if (r.status === 404) return setPreview({ status: 'missing' });
+                    if (!r.ok) return setPreview({ status: 'idle' }); // sin clave de API, etc.: no bloquear el envío
+                    const d = await r.json();
+                    setPreview({ status: 'ok', title: d.title, channel: d.channelTitle });
+                })
+                .catch(() => {});
+        }, 400);
+        return () => {
+            clearTimeout(t);
+            ctrl.abort();
         };
+    }, [videoId]);
 
-        setErrors(newErrors);
-        return !Object.values(newErrors).some(error => error !== null);
-    };
+    const urlError = !url.trim()
+        ? 'Paste a YouTube, Spotify or SoundCloud link'
+        : !platform
+            ? 'That doesn’t look like a YouTube, Spotify or SoundCloud track link'
+            : preview.status === 'missing'
+                ? 'That video doesn’t exist or is private'
+                : serverUrlError;
+    const typeError = !type.trim() ? 'Choose a type' : null;
+    const genreError = !genre.trim() ? 'Choose or create a genre' : null;
+    const isValid = !urlError && !typeError && !genreError && preview.status !== 'loading';
 
-    const handleChange = (field: keyof typeof formData, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        // Clear error when user starts typing
-        if (errors[field as keyof FormErrors]) setErrors(prev => ({ ...prev, [field]: null } as FormErrors));
+    const paste = async () => {
+        try {
+            const text = (await navigator.clipboard.readText()).trim();
+            if (text) {
+                setUrl(text);
+                setTouched(true);
+            }
+        } catch {
+            urlRef.current?.focus(); // sin permiso de portapapeles: que lo pegue a mano
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validateForm()) return;
+        setTouched(true);
+        if (!isValid || loading) return;
 
         setLoading(true);
         try {
-            // El servidor normaliza, comprueba duplicados (409) e inserta
-            const cleanUrl = formData.url.trim();
-            const { data, error } = await createLink({
-                ...formData,
-                url: cleanUrl,
-                username: displayName.trim() || 'Anonymous',
-            });
+            // El servidor normaliza, comprueba duplicados (409) e inserta; el autor sale de tu sesión
+            const { data, error } = await createLink({ url: url.trim(), type: type.trim(), genre: genre.trim() });
             if (error?.status === 409) {
-                setErrors(prev => ({ ...prev, url: 'This link already exists' }));
-                toast({
-                    title: 'Duplicate link',
-                    description: 'That URL is already in the list.',
-                    variant: 'destructive',
-                });
+                setServerUrlError('This link already exists');
+                toast({ title: 'Duplicate link', description: 'That URL is already in the list.', variant: 'destructive' });
                 return;
             }
             if (error) throw new Error(error.message);
 
-            toast({
-                title: "¡Éxito!",
-                description: "El enlace se ha añadido correctamente.",
-            });
-
-            // Notificar al componente padre sobre el nuevo link
-            if (data && onNewLinkAdded) {
-                onNewLinkAdded(data);
-            }
-
+            toast({ title: '¡Éxito!', description: 'El enlace se ha añadido correctamente.' });
+            if (data && onNewLinkAdded) onNewLinkAdded(data);
             onSuccess();
             onClose();
         } catch (error) {
             console.error('Error submitting form:', error);
-            // Unique constraint violation (e.g., if a DB unique index exists on url)
-            if (hasStringCode(error) && error.code === '23505') {
-                setErrors(prev => ({ ...prev, url: 'This link already exists' }));
-                toast({
-                    title: 'Duplicate link',
-                    description: 'That URL is already in the list.',
-                    variant: 'destructive',
-                });
-            } else {
-                toast({
-                    title: "Error",
-                    description: error instanceof Error ? error.message : "Failed to share music. Please try again.",
-                    variant: "destructive",
-                });
-            }
+            toast({
+                title: 'Error',
+                description: error instanceof Error ? error.message : 'Failed to share music. Please try again.',
+                variant: 'destructive',
+            });
         } finally {
             setLoading(false);
         }
     };
 
-    // Cargar el nombre de usuario del localStorage si existe, de lo contrario usar el prop
-    const [displayName, setDisplayName] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('m4s_username') || (username === 'Guest' ? '' : username);
-        }
-        return username === 'Guest' ? '' : username;
-    });
-    
-    const [isEditingName, setIsEditingName] = useState(username === 'Guest');
-
+    const showUrlError = touched && urlError;
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col gap-4" noValidate>
+            {/* Los campos hacen scroll dentro del modal; el botón queda siempre visible abajo */}
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-1 -mx-1 pb-1">
+            {/* LINK */}
             <div className="space-y-2">
-                {isEditingName ? (
+                <label htmlFor="submit-url" className="text-base font-medium text-foreground">Link</label>
+                <div className="flex items-center gap-2">
+                    <Input
+                        id="submit-url"
+                        ref={urlRef}
+                        autoFocus
+                        inputMode="url"
+                        placeholder="https://…"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        onBlur={() => url && setTouched(true)}
+                        aria-invalid={Boolean(showUrlError)}
+                        className={cn(
+                            'bg-background/70 border-border/40 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary',
+                            showUrlError && 'border-destructive',
+                        )}
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={paste}
+                        title="Paste from clipboard"
+                        aria-label="Paste from clipboard"
+                        className="h-11 w-11 shrink-0 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                    >
+                        <ClipboardPaste className="h-5 w-5" />
+                    </Button>
+                </div>
+
+                {showUrlError ? (
+                    <p className="text-destructive">{urlError}</p>
+                ) : platform ? (
+                    <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/50 p-2">
+                        {videoId && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`}
+                                alt=""
+                                className="h-14 w-24 shrink-0 rounded object-cover bg-muted"
+                                onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                            />
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="text-primary font-medium">{PLATFORM_LABEL[platform]}</p>
+                            {preview.status === 'loading' ? (
+                                <p className="flex items-center gap-2 text-foreground/60"><Loader2 className="h-4 w-4 animate-spin" /> Checking…</p>
+                            ) : preview.status === 'ok' ? (
+                                <>
+                                    <p className="truncate text-foreground">{preview.title}</p>
+                                    {preview.channel && <p className="truncate text-foreground/60">{preview.channel}</p>}
+                                </>
+                            ) : (
+                                <p className="text-foreground/60">Link detected</p>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
+            {/* TYPE */}
+            <div className="space-y-2">
+                <span className="text-base font-medium text-foreground">Type</span>
+                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Type">
+                    {TYPE_OPTIONS.map((t) => (
+                        <button
+                            key={t}
+                            type="button"
+                            role="radio"
+                            aria-checked={!customType && type === t}
+                            onClick={() => {
+                                setCustomType(false);
+                                setType(t);
+                            }}
+                            className={cn(
+                                'rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 text-base transition-colors',
+                                !customType && type === t
+                                    ? 'border-primary bg-primary/20 text-foreground'
+                                    : 'border-border/40 text-foreground/80 hover:bg-accent/40 hover:text-foreground',
+                            )}
+                        >
+                            {t}
+                        </button>
+                    ))}
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={customType}
+                        onClick={() => {
+                            setCustomType(true);
+                            setType('');
+                        }}
+                        className={cn(
+                            'rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 text-base transition-colors',
+                            customType ? 'border-primary bg-primary/20 text-foreground' : 'border-dashed border-border/60 text-foreground/70 hover:bg-accent/40 hover:text-foreground',
+                        )}
+                    >
+                        Other…
+                    </button>
+                </div>
+                {customType && (
                     <div className="flex items-center gap-2">
                         <Input
-                            type="text"
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const name = displayName.trim();
-                                    if (name) {
-                                        if (typeof window !== 'undefined') {
-                                            localStorage.setItem('m4s_username', name);
-                                        }
-                                        setIsEditingName(false);
-                                    }
-                                }
-                            }}
-                            placeholder="Your name"
-                            className="flex-1"
                             autoFocus
+                            placeholder="e.g. Podcast"
+                            maxLength={30}
+                            value={type}
+                            onChange={(e) => setType(e.target.value)}
+                            className="bg-background/70 border-border/40 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary"
                         />
-                        <Button 
-                            type="button" 
-                            size="sm"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                const name = displayName.trim();
-                                if (name) {
-                                    // Guardar en localStorage cuando se actualiza el nombre
-                                    if (typeof window !== 'undefined') {
-                                        localStorage.setItem('m4s_username', name);
-                                    }
-                                    setIsEditingName(false);
-                                }
-                            }}
-                        >
-                            Save
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-between">
-                        <div className="text-base text-foreground/90">
-                            <span>Posting as <span className="font-medium text-foreground">{displayName || 'Anonymous'}</span></span>
-                        </div>
                         <Button
                             type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setIsEditingName(true)}
-                            className="h-8 w-8 text-foreground/80 hover:text-foreground hover:bg-accent/40"
+                            variant="outline"
+                            onClick={() => {
+                                setCustomType(false);
+                                setType('');
+                            }}
+                            aria-label="Cancel custom type"
+                            className="h-11 w-11 shrink-0 p-0 rounded-md border-border/40"
                         >
-                            <Pencil className="h-4 w-4" />
+                            <X className="h-5 w-5" />
                         </Button>
                     </div>
                 )}
-                <p className="text-base text-muted-foreground">
-                    {username === 'Guest' ? 'Sign in to save your username' : 'Click the pencil to change your name'}
-                </p>
+                {touched && typeError && <p className="text-destructive">{typeError}</p>}
             </div>
-            <div className="space-y-6">
-                <div>
-                    <Input
-                        placeholder="URL"
-                        value={formData.url}
-                        onChange={e => handleChange('url', e.target.value)}
-                        className={`bg-background/70 border-border/40 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary ${errors.url ? 'border-destructive' : ''}`}
-                    />
-                    {errors.url && (
-                        <p className="mt-1 text-destructive">{errors.url}</p>
-                    )}
-                </div>
 
-                <div>
-                    {!customTypeMode ? (
-                        <div className="flex items-center gap-2">
-                            <Select
-                                value={formData.type}
-                                onValueChange={(value) => handleChange('type', value)}
-                            >
-                                <SelectTrigger className={`bg-background/70 border-border/40 text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0 ${errors.type ? 'border-destructive' : ''} flex-1 min-w-0`}>
-                                    <SelectValue placeholder="Select a type" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-background border-border/40">
-                                    {['Mix', 'Video', 'Song'].map((t) => (
-                                        <SelectItem key={t} value={t}>
-                                            {t}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setCustomTypeMode(true); setCustomTypeValue(''); }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Add custom type"
-                            >
-                                <Plus className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <input
-                                list="types-list"
-                                placeholder="Type or search a type"
-                                value={customTypeValue}
-                                onChange={(e) => setCustomTypeValue(e.target.value)}
-                                className="flex-1 min-w-0 h-11 rounded-md bg-background/70 border border-border/40 px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
-                            />
-                            <datalist id="types-list">
-                                {['Mix', 'Video', 'Song'].map((t) => (
-                                    <option key={t} value={t} />
-                                ))}
-                            </datalist>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    const val = customTypeValue.trim();
-                                    if (!val) return;
-                                    // Agregar el nuevo tipo a la lista de tipos
-                                    const existingTypes = ['Mix', 'Video', 'Song'];
-                                    if (!existingTypes.includes(val)) {
-                                        existingTypes.push(val);
-                                    }
-                                    handleChange('type', val);
-                                    setCustomTypeMode(false);
-                                    setCustomTypeValue('');
-                                }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Use this type"
-                            >
-                                <Check className="h-5 w-5" />
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setCustomTypeMode(false); setCustomTypeValue(''); }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Cancel"
-                            >
-                                <X className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    )}
-                    {errors.type && (
-                        <p className="mt-1 text-destructive">{errors.type}</p>
-                    )}
-                </div>
-
-                <div>
-                    {!customGenreMode ? (
-                        <div className="flex items-center gap-2">
-                            <Select
-                                value={formData.genre}
-                                onValueChange={handleGenreSelect}
-                            >
-                                <SelectTrigger className={`bg-background/70 border-border/40 text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0 ${errors.genre ? 'border-destructive' : ''} flex-1 min-w-0`}>
-                                    <SelectValue placeholder="Select a genre" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-background border-border/40">
-                                    {genres.map((genre) => (
-                                        <SelectItem key={genre.value} value={genre.value}>
-                                            {genre.value}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setCustomGenreMode(true); setCustomGenreValue(''); }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Add custom genre"
-                            >
-                                <Plus className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <input
-                                list="genres-list"
-                                placeholder="Type or search a genre"
-                                value={customGenreValue}
-                                onChange={(e) => setCustomGenreValue(e.target.value)}
-                                className="flex-1 min-w-0 h-11 rounded-md bg-background/70 border border-border/40 px-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
-                            />
-                            <datalist id="genres-list">
-                                {genres.map((g: { value: string; count: number }) => (
-                                    <option key={g.value} value={g.value} />
-                                ))}
-                            </datalist>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    const val = customGenreValue.trim();
-                                    if (!val) return;
-                                    // Agregar el nuevo género a la lista de géneros
-                                    const genreLower = val.toLowerCase();
-                                    if (!genres.some(g => g.value.toLowerCase() === genreLower)) {
-                                        const newGenre = { value: val, count: 1 };
-                                        setGenres(prevGenres => [...prevGenres, newGenre]);
-                                    }
-                                    handleChange('genre', val);
-                                    setCustomGenreMode(false);
-                                    setCustomGenreValue('');
-                                }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Use this genre"
-                            >
-                                <Check className="h-5 w-5" />
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => { setCustomGenreMode(false); setCustomGenreValue(''); }}
-                                className="h-11 w-11 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                                title="Cancel"
-                            >
-                                <X className="h-5 w-5" />
-                            </Button>
-                        </div>
-                    )}
-                    {errors.genre && (
-                        <p className="mt-1 text-destructive">{errors.genre}</p>
-                    )}
-                </div>
+            {/* GENRE */}
+            <div className="space-y-2">
+                <span className="text-base font-medium text-foreground">Genre</span>
+                <GenreCards
+                    genres={genres}
+                    value={genre}
+                    hasError={Boolean(touched && genreError)}
+                    onChange={(g) => {
+                        // Género nuevo: se añade a la lista local para poder reutilizarlo
+                        if (g && !genres.some((x) => x.value.toLowerCase() === g.toLowerCase())) {
+                            setGenres((prev) => [...prev, { value: g, count: 1 }]);
+                        }
+                        setGenre(g);
+                    }}
+                />
+                {touched && genreError && <p className="text-destructive">{genreError}</p>}
+            </div>
             </div>
 
             <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (touched && !isValid)}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3 transition-all duration-200 hover:shadow-lg hover:shadow-primary/25"
             >
-                {loading ? 'Uploading...' : 'Share Music'}
+                {loading ? (
+                    <span className="flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Sharing…</span>
+                ) : (
+                    'Share Music'
+                )}
             </Button>
         </form>
     );
-}
+};
 
 export default SubmitForm;

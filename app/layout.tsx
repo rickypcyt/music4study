@@ -1,7 +1,5 @@
 import './globals.css';
 
-import { Geist, Geist_Mono } from 'next/font/google';
-
 import type { Metadata } from 'next';
 import PageTransition from '@/components/ui/PageTransition';
 import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
@@ -12,22 +10,6 @@ import { Toaster } from '@/components/ui/toaster';
 import ClientProvider from '@/components/ClientProvider';
 import { cn } from '@/lib/utils';
 import { config } from '@/lib/config';
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
-  preload: true,
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-  display: "swap",
-  weight: ["400", "500", "600", "700"],
-  preload: true,
-});
 
 export const metadata: Metadata = {
   title: {
@@ -122,8 +104,6 @@ export default function RootLayout({
         <meta name="google-site-verification" content="emfPXJ9fdKnImVBYpVMGTCGINjQH1rj_n8BwFitFpuI" />
         <SpotifyScript />
         <ResourcePreloader />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://i.ytimg.com" />
         <link rel="preconnect" href="https://www.youtube.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
@@ -174,9 +154,7 @@ export default function RootLayout({
         />
       </head>
       <body className={cn(
-        "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased font-sans",
-        geistSans.variable,
-        geistMono.variable
+        "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased font-sans"
       )}>
           <ClientProvider>
             <Suspense fallback={

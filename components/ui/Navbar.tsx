@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "./dialog";
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 import { Button } from './button';
 import Link from 'next/link';
@@ -42,7 +42,6 @@ export default function Navbar({
   onThemeChange,
   currentTheme,
 }: NavbarProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -50,17 +49,12 @@ export default function Navbar({
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Handle navigation with loading state
-  const handleNavigation = useCallback((view: string, callback: () => void) => {
+  // La URL la actualiza el callback de la página (sin pasar por el servidor)
+  const handleNavigation = useCallback((_view: string, callback: () => void) => {
     setIsNavigating(true);
-    const params = new URLSearchParams();
-    if (view !== 'home') {
-      params.set('view', view);
-    }
-    router.replace(view === 'home' ? '/' : `/?${params.toString()}`, { scroll: false });
     callback();
-    // Shorter timeout for more responsive feel
     setTimeout(() => setIsNavigating(false), 50);
-  }, [router]);
+  }, []);
 
   // Close mobile menu when clicking outside
   useEffect(() => {
@@ -96,13 +90,13 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'home'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
-        <Home className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
+        <Home className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Home</span>
       </Link>
       <Link
@@ -114,13 +108,13 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'genres'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
-        <Tags className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
+        <Tags className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Genres</span>
       </Link>
       <Link
@@ -132,70 +126,74 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 md:px-2 pt-1 pb-2 border-b-2 text-base md:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
           currentView === 'combinations'
             ? 'border-primary text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
-        <Layers className="h-5 w-5 md:h-6 md:w-6 mr-1 md:mr-2" />
+        <Layers className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Combinations</span>
       </Link>
     </>
   );
 
   const ControlButtons = () => (
-    <div className="flex items-center space-x-3 lg:space-x-4">
+    <div className="flex items-center space-x-1 lg:space-x-4">
       <button
         onClick={() => setShowSortMenu(true)}
-        className="inline-flex items-center justify-center px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+        aria-label="Sort"
+        title="Sort"
+        className="inline-flex items-center justify-center px-2 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
       >
-        <ArrowUpDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
-        <span>Sort</span>
+        <ArrowUpDown className="h-5 w-5 lg:h-6 lg:w-6 lg:mr-2" />
+        <span className="hidden lg:inline">Sort</span>
       </button>
       {user ? (
         <button
           onClick={onProfileClick}
           title="Profile"
-          className="inline-flex items-center justify-center gap-2 px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+          aria-label="Profile"
+          className="inline-flex items-center justify-center gap-2 px-2 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {user.image && <img src={user.image} alt="" referrerPolicy="no-referrer" className="h-6 w-6 rounded-full" />}
-          <span className="max-w-[8rem] truncate">{user.username ? `@${user.username}` : user.name}</span>
+          <span className={`${user.image ? "hidden lg:inline" : ""} max-w-[8rem] truncate`}>{user.username ? `@${user.username}` : user.name}</span>
         </button>
       ) : (
         <button
           onClick={onLoginClick}
-          className="inline-flex items-center justify-center px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+          className="inline-flex items-center justify-center px-2 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
         >
           Sign in
         </button>
       )}
       <Button
         onClick={onSubmitClick}
-        className="bg-primary hover:bg-primary/90 text-primary-foreground text-base lg:text-lg px-3 lg:px-4 py-2 transition-colors duration-200"
+        className="bg-primary hover:bg-primary/90 text-primary-foreground text-base lg:text-lg px-3 lg:px-4 py-2 ml-1 lg:ml-0 transition-colors duration-200"
       >
-        <span>Submit Track</span>
+        <span className="lg:hidden">Submit</span>
+        <span className="hidden lg:inline">Submit Track</span>
       </Button>
     </div>
   );
 
   return (
     <nav className="navbar sticky top-0 z-50">
-      <div className="w-full px-4 md:px-5 lg:px-10 xl:px-12">
+      <div className="w-full px-4 md:px-4 lg:px-10 xl:px-12">
         <div className="flex justify-center h-16">
           {/* Main Content: Logo, Nav Links, Controls */}
-          <div className="flex items-center justify-between w-full md:grid md:grid-cols-[1fr_auto_1fr]">
+          <div className="flex items-center justify-between w-full md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-2">
 
             {/* Logo */}
             <div className="flex-shrink-0 md:justify-self-start">
-              <h1 className="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-sans text-foreground tracking-wider font-light">
+              <h1 className="text-2xl sm:text-3xl md:text-2xl lg:text-4xl font-sans text-foreground tracking-wider font-light">
                 Music4Study
               </h1>
             </div>
 
             {/* Desktop Nav Links */}
-            <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
+            <div className="hidden md:flex items-center space-x-2 lg:space-x-6">
               <NavLinks />
             </div>
 

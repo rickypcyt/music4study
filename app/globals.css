@@ -406,3 +406,24 @@ select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .m4s-shimmer::after, .m4s-fade-up, .m4s-eq-bar { animation: none; }
 }
+
+/* ===== Landing ===== */
+@keyframes m4s-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(4%, -6%, 0) scale(1.08); }
+  66% { transform: translate3d(-5%, 4%, 0) scale(0.95); }
+}
+@keyframes m4s-pulse-dot {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.6); }
+  100% { box-shadow: 0 0 0 10px hsl(var(--primary) / 0); }
+}
+@keyframes m4s-slide-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.m4s-orb { position: absolute; border-radius: 9999px; filter: blur(70px); animation: m4s-float 18s ease-in-out infinite; }
+.m4s-live-dot { width: 10px; height: 10px; border-radius: 9999px; background: hsl(var(--primary)); animation: m4s-pulse-dot 1.8s ease-out infinite; }
+.m4s-slide-in { animation: m4s-slide-in 0.5s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .m4s-orb, .m4s-live-dot, .m4s-slide-in { animation: none; }
+}

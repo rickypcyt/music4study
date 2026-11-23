@@ -33,7 +33,22 @@ export interface ApiCombination {
   links: ApiLink[];
 }
 
-export const fetchAllLinks = () => call<ApiLink[]>('/api/links');
+/** Una sola petición: tu biblioteca si hay sesión, o la muestra pública. Devuelve también el ámbito ('anon' o id de usuario). */
+export async function fetchAutoLinks(): Promise<{ data: ApiLink[] | null; error: Result<never>['error']; scope: string }> {
+  try {
+    const res = await fetch('/api/links?scope=auto');
+    const body = await res.json().catch(() => null);
+    if (!res.ok) return { data: null, error: { message: body?.error ?? res.statusText, status: res.status }, scope: 'anon' };
+    return { data: body as ApiLink[], error: null, scope: res.headers.get('X-Links-Scope') ?? 'anon' };
+  } catch (e) {
+    return { data: null, error: { message: e instanceof Error ? e.message : 'Network error' }, scope: 'anon' };
+  }
+}
+
+/** Muestra pública (sin sesión) */
+export const fetchPublicSample = (limit = 8) => call<ApiLink[]>(`/api/links?scope=public&limit=${limit}`);
+/** Biblioteca del usuario con sesión */
+export const fetchMyLinks = () => call<ApiLink[]>('/api/links?scope=mine');
 export const fetchLinksByIds = (ids: string[]) => call<ApiLink[]>(`/api/links?ids=${ids.join(',')}`);
 export const fetchLinkById = (id: string) => call<ApiLink>(`/api/links/${id}`);
 export const createLink = (payload: { url: string; type?: string; genre?: string; username?: string; title?: string }) =>

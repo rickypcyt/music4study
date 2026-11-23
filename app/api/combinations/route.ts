@@ -7,13 +7,21 @@ import { getSession } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 /** GET /api/combinations -> combinaciones con sus links */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const combos = await db.select().from(combinations).orderBy(desc(combinations.createdAt));
+    // Solo las combinaciones de la cuenta con sesión; sin sesión no hay nada que mostrar
+    const session = await getSession(request);
+    if (!session?.user) return NextResponse.json([]);
+    const combos = await db
+      .select()
+      .from(combinations)
+      .where(eq(combinations.userId, session.user.id))
+      .orderBy(desc(combinations.createdAt));
     const rel = await db
       .select({ combinationId: combinationLinks.combinationId, link: links })
       .from(combinationLinks)
-      .innerJoin(links, eq(links.id, combinationLinks.linkId));
+      .innerJoin(links, eq(links.id, combinationLinks.linkId))
+      .where(eq(links.userId, session.user.id));
 
     const byCombo = new Map<string, ReturnType<typeof serializeLink>[]>();
     for (const r of rel) {
