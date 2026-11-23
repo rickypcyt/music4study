@@ -3,16 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import type { LandingStats } from '@/lib/stats';
 import { extractYouTubeId } from '@/lib/youtubeId';
 
-interface Stats {
-  totals: { tracks: number; genres: number; members: number; last24h: number; lastWeek: number };
-  topGenres: { name: string; count: number }[];
-  platforms: { youtube: number; spotify: number; soundcloud: number };
-  recent: { id: string; title: string; genre: string; type: string; username: string; url: string; dateAdded: string | null }[];
-  curators: { name: string; count: number }[];
-  generatedAt: string;
-}
+type Stats = LandingStats;
 
 const POLL_MS = 10_000;
 
@@ -76,11 +70,12 @@ function EqualizerBackdrop() {
   );
 }
 
-export default function Landing({ onSignIn }: { onSignIn: () => void }) {
-  const [stats, setStats] = useState<Stats | null>(null);
+export default function Landing({ initialStats, onSignIn }: { initialStats: LandingStats; onSignIn: () => void }) {
+  // Llega ya calculado desde el servidor: la primera pintura trae los números reales, sin esperar ni parpadeo
+  const [stats, setStats] = useState<Stats | null>(initialStats);
   const [now, setNow] = useState(() => Date.now());
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const knownIds = useRef<Set<string> | null>(null);
+  const knownIds = useRef<Set<string> | null>(new Set(initialStats.recent.map((r) => r.id)));
 
   const load = useCallback(async () => {
     try {
@@ -102,7 +97,6 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
 
   // Actualización en vivo: cada 10 s mientras la pestaña está visible (y al volver a ella)
   useEffect(() => {
-    load();
     let timer: ReturnType<typeof setInterval> | undefined;
     const start = () => {
       stop();
@@ -131,7 +125,7 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
   const maxCurator = Math.max(1, ...(stats?.curators.map((c) => c.count) ?? [1]));
 
   return (
-    <div className="space-y-12 pb-6">
+    <div className="space-y-12">
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-foreground/10 px-5 py-10 md:px-10 md:py-14">
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -159,8 +153,8 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
               <Button onClick={onSignIn} className="bg-primary px-8 py-6 text-lg text-primary-foreground hover:bg-primary/90">
                 Start your library
               </Button>
-              <a href="#from-the-library" className="px-4 py-3 text-lg text-foreground/80 hover:text-foreground">
-                Browse the library ↓
+              <a href="#discover" className="px-4 py-3 text-lg text-foreground/80 hover:text-foreground">
+                See what&apos;s new ↓
               </a>
             </div>
           </div>
@@ -175,7 +169,7 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
       </section>
 
       {/* JUST ADDED */}
-      <section className="space-y-4">
+      <section id="discover" className="scroll-mt-24 space-y-4">
         <div className="flex items-baseline justify-between">
           <h2 className="text-2xl md:text-3xl font-bold text-foreground">Just added</h2>
           <span className="text-base text-foreground/50">newest first</span>
@@ -221,7 +215,7 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
       </section>
 
       {/* GENRES + CURATORS + PLATFORMS */}
-      <section className="grid gap-6 lg:grid-cols-3">
+      <section id="community" className="scroll-mt-24 grid gap-6 lg:grid-cols-3">
         <div className="space-y-4 rounded-xl border border-foreground/10 bg-background/40 p-5">
           <h2 className="text-xl font-bold text-foreground">Top genres</h2>
           <ul className="space-y-3">
@@ -285,9 +279,6 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
         </div>
       </section>
 
-      <h2 id="from-the-library" className="scroll-mt-24 text-2xl md:text-3xl font-bold text-foreground">
-        From the library
-      </h2>
     </div>
   );
 }

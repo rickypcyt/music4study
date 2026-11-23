@@ -20,6 +20,8 @@ interface NavbarProps {
   onSubmitClick: () => void;
   onCombinationsClick: () => void;
   user?: { name: string; username?: string | null; image: string | null } | null;
+  /** true mientras aún no se sabe si hay sesión: evita mostrar "Sign in" por error */
+  authLoading?: boolean;
   onLoginClick?: () => void;
   onProfileClick?: () => void;
   onSortChange: (sort: string) => void;
@@ -35,6 +37,7 @@ export default function Navbar({
   onSubmitClick,
   onCombinationsClick,
   user,
+  authLoading,
   onLoginClick,
   onProfileClick,
   onSortChange,
@@ -160,6 +163,8 @@ export default function Navbar({
           {user.image && <img src={user.image} alt="" referrerPolicy="no-referrer" className="h-6 w-6 rounded-full" />}
           <span className={`${user.image ? "hidden lg:inline" : ""} max-w-[8rem] truncate`}>{user.username ? `@${user.username}` : user.name}</span>
         </button>
+      ) : authLoading ? (
+        <div className="m4s-shimmer mx-1 h-10 w-24 rounded-md" aria-label="Loading account" role="status" />
       ) : (
         <button
           onClick={onLoginClick}
@@ -241,10 +246,11 @@ export default function Navbar({
                   <span>Sort</span>
                 </button>
                 <button
+                  disabled={authLoading && !user}
                   onClick={user ? onProfileClick : onLoginClick}
                   className="inline-flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors"
                 >
-                  {user ? `Profile (${user.username ? `@${user.username}` : user.name.split(' ')[0]})` : 'Sign in'}
+                  {user ? `Profile (${user.username ? `@${user.username}` : user.name.split(' ')[0]})` : authLoading ? '…' : 'Sign in'}
                 </button>
                 <Button
                   onClick={onSubmitClick}
