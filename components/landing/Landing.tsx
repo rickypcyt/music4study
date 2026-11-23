@@ -1,5 +1,6 @@
 'use client';
 
+import YouTubeThumb from '@/components/YouTubeThumb';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Play } from 'lucide-react';
@@ -193,14 +194,7 @@ export default function Landing({
                   ) : (
                     <>
                       {vid && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`https://i.ytimg.com/vi/${vid}/mqdefault.jpg`}
-                          alt=""
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                          onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-                        />
+                        <YouTubeThumb videoId={vid} className="h-full w-full object-cover" />
                       )}
                       {src ? (
                         <button

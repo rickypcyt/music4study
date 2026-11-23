@@ -2,17 +2,28 @@
 
 import { Play, Square } from 'lucide-react';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-type Track = { id: string; title: string; subtitle: string; color: string };
+import YouTubeThumb from '@/components/YouTubeThumb';
+
+type Track = { id: string; title: string; username: string; dateAdded: string };
+
+function timeAgo(iso: string, now: number): string {
+  const m = Math.floor((now - new Date(iso).getTime()) / 60000);
+  if (m < 60) return `${Math.max(m, 1)} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.floor(h / 24);
+  return d < 30 ? `${d} d ago` : new Date(iso).toLocaleDateString('en-US');
+}
 
 const TRACKS: Track[] = [
-  { id: '2jsLtO9zRcM', title: 'Brown noise', subtitle: 'Deep, steady focus sound', color: '#8b5a2b' },
-  { id: '8plwv25NYRo', title: 'Rain', subtitle: 'Soft rain for studying', color: '#3b82f6' },
-  { id: 'VDIvQ2XYcxs', title: 'Ocean waves', subtitle: 'Waves on the shore', color: '#06b6d4' },
+  { id: 'Q6MemVxEquE', title: 'Deep Layered Brown Noise ( 12 Hours )', username: 'rickypcyt', dateAdded: '2025-03-30T00:22:26.431Z' },
+  { id: 'q76bMs-NwRk', title: '3 Hours of Gentle Night Rain, Rain Sounds for Sleeping - Dark Screen to Beat insomnia, Relax, Study', username: 'rickypcyt', dateAdded: '2025-03-30T00:22:26.431Z' },
+  { id: 'bn9F19Hi1Lk', title: 'Sleep For 11 Hours Straight, High Quality Stereo Ocean Sounds Of Rolling Waves For Deep Sleeping', username: 'rickypcyt', dateAdded: '2025-03-30T00:22:26.431Z' },
 ];
 
-function Tile({ track, playing, onPlay }: { track: Track; playing: boolean; onPlay: () => void }) {
+function Tile({ track, playing, onPlay, now }: { track: Track; playing: boolean; onPlay: () => void; now: number | null }) {
   return (
     <li className="overflow-hidden rounded-xl border border-foreground/10 bg-background/40">
       <div className="relative aspect-video bg-gradient-to-br from-primary/30 to-[#7C3AED]/30">
@@ -26,14 +37,7 @@ function Tile({ track, playing, onPlay }: { track: Track; playing: boolean; onPl
           />
         ) : (
           <button type="button" onClick={onPlay} aria-label={`Play ${track.title}`} className="absolute inset-0 flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`https://i.ytimg.com/vi/${track.id}/mqdefault.jpg`}
-              alt=""
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover"
-              onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-            />
+            <YouTubeThumb videoId={track.id} className="absolute inset-0 h-full w-full object-cover" />
             <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-white">
               <Play className="ml-1 h-7 w-7" fill="currentColor" />
             </span>
@@ -42,7 +46,7 @@ function Tile({ track, playing, onPlay }: { track: Track; playing: boolean; onPl
       </div>
       <div className="space-y-1 p-3">
         <p className="line-clamp-2 text-base font-medium leading-snug text-foreground">{track.title}</p>
-        <p className="truncate text-base text-foreground/60">{track.subtitle}</p>
+        <p className="truncate text-base text-foreground/60">@{track.username}{now !== null && ` · ${timeAgo(track.dateAdded, now)}`}</p>
       </div>
     </li>
   );
@@ -51,6 +55,8 @@ function Tile({ track, playing, onPlay }: { track: Track; playing: boolean; onPl
 /** Demo reproducible: un track real de cada plataforma, para probar a escuchar varios a la vez. */
 export default function TryIt() {
   const [playing, setPlaying] = useState<Record<string, boolean>>({});
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => setNow(Date.now()), []);
   const count = TRACKS.filter((t) => playing[t.id]).length;
 
   return (
@@ -80,7 +86,7 @@ export default function TryIt() {
 
       <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {TRACKS.map((t) => (
-          <Tile key={t.id} track={t} playing={Boolean(playing[t.id])} onPlay={() => setPlaying((p) => ({ ...p, [t.id]: true }))} />
+          <Tile key={t.id} track={t} now={now} playing={Boolean(playing[t.id])} onPlay={() => setPlaying((p) => ({ ...p, [t.id]: true }))} />
         ))}
       </ul>
     </section>

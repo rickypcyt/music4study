@@ -1,5 +1,6 @@
 'use client';
 
+import YouTubeThumb from '@/components/YouTubeThumb';
 import { ClipboardPaste, Loader2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -193,13 +194,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
                 ) : platform ? (
                     <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/50 p-2">
                         {videoId && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                                src={`https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`}
-                                alt=""
-                                className="h-14 w-24 shrink-0 rounded object-cover bg-muted"
-                                onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-                            />
+                            <YouTubeThumb videoId={videoId} className="h-14 w-24 shrink-0 rounded object-cover bg-muted" />
                         )}
                         <div className="min-w-0 flex-1">
                             <p className="text-primary font-medium">{PLATFORM_LABEL[platform]}</p>

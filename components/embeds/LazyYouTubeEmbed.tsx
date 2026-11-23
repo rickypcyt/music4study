@@ -26,7 +26,7 @@ export default function LazyYouTubeEmbed({
   title: initialTitle,
   linkId,
   className = '',
-  thumbnailQuality = 'hqdefault',
+  thumbnailQuality = 'maxresdefault',
   onVideoClick,
   onUnavailable,
   priority = false
@@ -129,7 +129,8 @@ export default function LazyYouTubeEmbed({
 
   // Solo 3 intentos: si i.ytimg.com no responde (404, proxy, red), insistir con más variantes solo añade ruido
   const thumbnailFallbacks = [
-    `${thumbnailQuality}.jpg`, // Calidad pedida
+    `${thumbnailQuality}.jpg`, // Calidad pedida (HD por defecto; no todos los videos la tienen)
+    ...(thumbnailQuality === 'maxresdefault' ? ['hqdefault.jpg'] : []),
     'mqdefault.jpg',          // Media
     'default.jpg',            // Mínima
   ];
@@ -151,7 +152,8 @@ export default function LazyYouTubeEmbed({
 
   const handleThumbnailError = () => {
     // Primera miniatura caída: probablemente el video fue eliminado; verificar antes de seguir probando
-    if (currentThumbnailAttempt === 0) checkAndRemoveIfUnavailable();
+    // (si pedimos maxres, su 404 es normal en muchos videos: comprobar solo cuando falla hqdefault)
+    if (currentThumbnailAttempt === (thumbnailQuality === 'maxresdefault' ? 1 : 0)) checkAndRemoveIfUnavailable();
 
     const nextAttempt = currentThumbnailAttempt + 1;
     if (nextAttempt < thumbnailFallbacks.length) {
@@ -207,7 +209,14 @@ export default function LazyYouTubeEmbed({
               height={360}
               priority={priority}
               loading={priority ? undefined : "lazy"}
-              onLoad={() => setIsThumbnailLoaded(true)}
+              onLoad={(e) => {
+                // maxresdefault inexistente a veces responde con un placeholder de 120x90 en vez de 404
+                if (e.currentTarget.naturalWidth <= 120 && currentThumbnailAttempt < thumbnailFallbacks.length - 1) {
+                  handleThumbnailError();
+                  return;
+                }
+                setIsThumbnailLoaded(true);
+              }}
               onError={handleThumbnailError}
               unoptimized
             />
