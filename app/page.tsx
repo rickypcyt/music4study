@@ -13,8 +13,11 @@ import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
+import ProfileModal from '@/components/ui/ProfileModal';
+import UsernameModal from '@/components/ui/UsernameModal';
 import SimpleGrid from '@/components/ui/SimpleGrid';
-import { supabase } from '@/lib/supabase';
+import { createCombination, fetchAllLinks, fetchCombinations as fetchCombinationsApi, fetchLinkById, fetchLinksByIds } from '@/lib/dataApi';
+import { authClient } from '@/lib/auth-client';
 import { useToast } from '@/components/hooks/use-toast';
 
 const GenreCloud = dynamic(() => import('@/components/ui/GenreCloud'), { ssr: false });
@@ -220,6 +223,10 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
+  // El username se pide solo cuando ya hay sesión confirmada (nunca antes del login ni mientras carga)
+  const needsUsername = !isSessionPending && Boolean(session?.user) && !session?.user?.username;
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
@@ -333,10 +340,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
         if (youtubeLinksWithoutTitles.length > 0) {
           const linkIds = youtubeLinksWithoutTitles.map(l => l.id);
-          const { data, error } = await supabase
-            .from('links')
-            .select('*')
-            .in('id', linkIds);
+          const { data, error } = await fetchLinksByIds(linkIds);
 
           if (!error && data) {
             setAllLinks(prevLinks => {
@@ -380,15 +384,12 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
           fetchLinksData(false);
           return;
         }
-        console.log('[perf] cache miss, fetching from Supabase');
+        console.log('[perf] cache miss, fetching from API');
       }
 
       const t1 = performance.now();
-      const { data, error } = await supabase
-        .from('links')
-        .select('*')
-        .order('date_added', { ascending: false });
-      console.log(`[perf] supabase query: ${Math.round(performance.now() - t1)}ms, ${data?.length ?? 0} rows`);
+      const { data, error } = await fetchAllLinks();
+      console.log(`[perf] links query: ${Math.round(performance.now() - t1)}ms, ${data?.length ?? 0} rows`);
 
       if (error) throw error;
       
@@ -420,45 +421,12 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     try {
       setLoading(true);
       
-      const { data: combinationsData, error: combinationsError } = await supabase
-        .from('combinations')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data: combinationsData, error: combinationsError } = await fetchCombinationsApi();
 
-      if (combinationsError) throw combinationsError;
-      
-      if (!combinationsData?.length) {
-        setCombinations([]);
-        return;
-      }
+      if (combinationsError) throw new Error(combinationsError.message);
+      setCombinations((combinationsData ?? []) as unknown as CombinationWithLinks[]);
+      return;
 
-      const combinationIds = combinationsData.map(c => c.id);
-      const { data: fetchedLinks, error: linksError } = await supabase
-        .from('combination_links')
-        .select(`combination_id, link:link_id (*)`)
-        .in('combination_id', combinationIds);
-
-      if (linksError) {
-        console.error('Error fetching combination links:', linksError);
-      }
-
-      const linksByCombination = (fetchedLinks || []).reduce<Record<string, Link[]>>((acc, { combination_id, link }) => {
-        if (!acc[combination_id]) {
-          acc[combination_id] = [];
-        }
-        if (link) {
-          const linkArray = Array.isArray(link) ? link : [link];
-          acc[combination_id].push(...linkArray);
-        }
-        return acc;
-      }, {});
-
-      const combinationsWithLinks = combinationsData.map(combination => ({
-        ...combination,
-        links: linksByCombination[combination.id] || []
-      }));
-
-      setCombinations(combinationsWithLinks);
     } catch (err) {
       console.error('Error fetching combinations:', err);
       toast({
@@ -509,11 +477,8 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
   const handleGoogleLogin = useCallback(async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
-      
-      if (error) throw error;
+      const { error } = await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
+      if (error) throw new Error(error.message);
     } catch (err) {
       console.error('Error during Google login:', err);
       toast({
@@ -523,6 +488,10 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       });
     }
   }, [toast]);
+
+  const handleLogout = useCallback(async () => {
+    await authClient.signOut();
+  }, []);
 
   const handleLinkRemoved = useCallback((removedId: string) => {
     setAllLinks(prevLinks => {
@@ -537,14 +506,9 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     if (!newCombinationName.trim()) return;
 
     try {
-      const { error } = await supabase
-        .from('combinations')
-        .insert([{
-          name: newCombinationName.trim(),
-          created_at: new Date().toISOString()
-        }]);
+      const { error } = await createCombination(newCombinationName.trim());
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
       toast({
         title: "Success!",
@@ -572,13 +536,9 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Double-check: Fetch the link from DB to ensure we have the latest title
-    const { data: freshLink, error } = await supabase
-      .from('links')
-      .select('*')
-      .eq('id', newLink.id)
-      .single();
+    const { data: freshLink, error } = await fetchLinkById(newLink.id);
 
-    if (error) {
+    if (error || !freshLink) {
       // Fall back to the title we got
       const linkWithTitle = updatedTitle
         ? { ...newLink, title: updatedTitle, titleConfirmedAt: new Date().toISOString() }
@@ -593,7 +553,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       return;
     }
 
-    const finalTitle = freshLink.title || updatedTitle;
+    const finalTitle = freshLink.title || updatedTitle || '';
     const linkWithTitle = {
       ...freshLink,
       title: finalTitle,
@@ -616,9 +576,11 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     });
   }, [toast]);
 
+  // Con sesión iniciada se abre el formulario; sin sesión se abre el login
   const handleSubmitClick = useCallback(() => {
-    setIsPasswordDialogOpen(true);
-  }, []);
+    if (session?.user) setIsSubmitModalOpen(true);
+    else setIsLoginModalOpen(true);
+  }, [session?.user]);
 
   // Pagination handlers - no longer needed since we're showing all content
   // const handlePageChange = useCallback((page: number) => {
@@ -755,6 +717,9 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         onGenresClick={handleGenresClick}
         onHomeClick={handleHomeClick}
         onSubmitClick={handleSubmitClick}
+        user={session?.user ? { name: session.user.name, username: session.user.username ?? null, image: session.user.image ?? null } : null}
+        onLoginClick={() => setIsLoginModalOpen(true)}
+        onProfileClick={() => setIsProfileModalOpen(true)}
         onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
@@ -764,7 +729,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       
       <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col">
           {/* Genres view — always mounted, hidden when not active */}
-          <div className={currentView === 'genres' ? 'flex flex-col space-y-8' : 'hidden'}>
+          <div className={currentView === 'genres' ? 'flex-1 flex flex-col gap-6 pb-4' : 'hidden'}>
             <div className="text-center">
               <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
               <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
@@ -880,13 +845,30 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Username obligatorio tras el primer login */}
+      <UsernameModal
+        open={needsUsername}
+        onSaved={() => authClient.$store.notify('$sessionSignal')}
+        onSignOut={handleLogout}
+      />
+
+      {/* Profile Modal */}
+      {session?.user && (
+        <ProfileModal
+          open={isProfileModalOpen}
+          onOpenChange={setIsProfileModalOpen}
+          onSignOut={handleLogout}
+          user={{ name: session.user.name, image: session.user.image ?? null }}
+        />
+      )}
+
       {/* Login Modal */}
-      <Dialog open={isLoginModalOpen} onOpenChange={setIsLoginModalOpen}>
+      <Dialog open={isLoginModalOpen && !session?.user} onOpenChange={setIsLoginModalOpen}>
         <DialogContent className="bg-[#1a1814] border-[#e6e2d9]/10">
           <DialogHeader>
             <DialogTitle className="sr-only">Sign In</DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              You can submit tracks as a guest, or sign in to use your personal username.
+            <DialogDescription className="text-base text-muted-foreground">
+              Sign in with Google to submit tracks to your library.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -895,26 +877,6 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
               className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Sign in with Google
-            </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue as
-                </span>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsLoginModalOpen(false);
-                setIsSubmitModalOpen(true);
-              }}
-              className="w-full"
-            >
-              Guest
             </Button>
           </div>
         </DialogContent>

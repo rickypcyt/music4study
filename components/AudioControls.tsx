@@ -40,7 +40,7 @@ export default function AudioControls() {
           )}
         </button>
 
-        <div className="text-sm">
+        <div className="text-base">
           {formatTime(getCurrentTime())} / {formatTime(getDuration())}
         </div>
 

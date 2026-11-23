@@ -63,7 +63,7 @@ export default function PaginationControls({
           size="sm"
           onClick={onPreviousPage}
           disabled={currentPage === 1}
-          className="shrink-0 h-9 px-2 sm:px-3 bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+          className="shrink-0 h-9 px-2 sm:px-3 bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20 disabled:opacity-50 disabled:cursor-not-allowed text-base sm:text-base"
           aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4 sm:mr-1" />
@@ -75,7 +75,7 @@ export default function PaginationControls({
             page === 'ellipsis' ? (
               <span
                 key={`ellipsis-${i}`}
-                className="px-1 sm:px-1.5 text-[#e6e2d9]/50 text-xs sm:text-sm shrink-0"
+                className="px-1 sm:px-1.5 text-[#e6e2d9]/50 text-base sm:text-base shrink-0"
                 aria-hidden
               >
                 …
@@ -86,7 +86,7 @@ export default function PaginationControls({
                 variant="outline"
                 size="sm"
                 onClick={() => onPageChange(page)}
-                className={`min-w-[2rem] sm:min-w-[2.25rem] h-9 px-1.5 sm:px-2 text-xs sm:text-sm shrink-0 ${
+                className={`min-w-[2rem] sm:min-w-[2.25rem] h-9 px-1.5 sm:px-2 text-base sm:text-base shrink-0 ${
                   page === currentPage
                     ? '!bg-primary !hover:bg-primary/90 !text-primary-foreground !border-primary/50'
                     : 'bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20'
@@ -105,7 +105,7 @@ export default function PaginationControls({
           size="sm"
           onClick={onNextPage}
           disabled={currentPage === totalPages}
-          className="shrink-0 h-9 px-2 sm:px-3 bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20 disabled:opacity-50 disabled:cursor-not-allowed text-xs sm:text-sm"
+          className="shrink-0 h-9 px-2 sm:px-3 bg-[#e6e2d9]/10 border-[#e6e2d9]/20 text-[#e6e2d9] hover:bg-[#e6e2d9]/20 disabled:opacity-50 disabled:cursor-not-allowed text-base sm:text-base"
           aria-label="Next page"
         >
           <span className="hidden sm:inline">Next</span>

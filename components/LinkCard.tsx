@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import CachedEmbed from './embeds/CachedEmbed';
 import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
@@ -166,15 +166,15 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
             {/* Footer - always at bottom */}
             <div className="flex-shrink-0 flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10">
               <div className="flex flex-col items-start">
-                <span className="text-sm text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
-                <span className="text-sm text-[#e6e2d9]/70">by {link.username}</span>
+                <span className="text-base text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
+                <span className="text-base text-[#e6e2d9]/70">by {link.username}</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center space-x-2">
-                  <span className="px-3 py-1 text-sm font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
+                  <span className="px-3 py-1 text-base font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
                     {link.genre}
                   </span>
-                  <span className="px-3 py-1 text-sm font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
+                  <span className="px-3 py-1 text-base font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
                     {link.type}
                   </span>
                 </div>

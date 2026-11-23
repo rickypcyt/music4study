@@ -20,10 +20,10 @@ export default function Error({
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-gray-100">
             Oops! Something went wrong.
           </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
             Error: {error.message}
           </p>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
             Digest: {error.digest}
           </p>
         </div>
@@ -32,7 +32,7 @@ export default function Error({
             Try again
           </Button>
           <Link
-            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             href="/"
           >
             Back to homepage

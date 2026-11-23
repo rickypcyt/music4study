@@ -98,14 +98,14 @@ export default function VideoCard({ videoId, title, thumbnail, url, className = 
 
         {/* Now playing indicator */}
         {isCurrentVideo && (
-          <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-medium">
+          <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-base font-medium">
             🎵 Reproduciendo
           </div>
         )}
 
         {/* Time display */}
         {isCurrentVideo && duration > 0 && (
-          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-base">
             {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         )}
@@ -172,7 +172,7 @@ export default function VideoCard({ videoId, title, thumbnail, url, className = 
           {!isYouTube && (
             <button
               onClick={() => window.open(url, '_blank')}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-base"
             >
               Abrir
             </button>

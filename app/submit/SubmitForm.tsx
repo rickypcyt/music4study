@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/lib/supabase';
+import { createLink } from '@/lib/dataApi';
 import { useState } from 'react';
 import { useToast } from '@/components/hooks/use-toast';
 
@@ -107,15 +107,14 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
 
         setLoading(true);
         try {
-            // Normalize URL and check for duplicates (case-insensitive)
+            // El servidor normaliza, comprueba duplicados (409) e inserta
             const cleanUrl = formData.url.trim();
-            const { data: existing, error: checkError } = await supabase
-                .from('links')
-                .select('id')
-                .ilike('url', cleanUrl)
-                .limit(1);
-            if (checkError) throw checkError;
-            if (existing && existing.length > 0) {
+            const { data, error } = await createLink({
+                ...formData,
+                url: cleanUrl,
+                username: displayName.trim() || 'Anonymous',
+            });
+            if (error?.status === 409) {
                 setErrors(prev => ({ ...prev, url: 'This link already exists' }));
                 toast({
                     title: 'Duplicate link',
@@ -124,21 +123,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
                 });
                 return;
             }
-
-            const { data, error } = await supabase
-                .from('links')
-                .insert([
-                    {
-                        ...formData,
-                        url: cleanUrl,
-                        date_added: new Date().toISOString(),
-                        username: displayName.trim() || 'Anonymous',
-                    },
-                ])
-                .select()
-                .single();
-
-            if (error) throw error;
+            if (error) throw new Error(error.message);
 
             toast({
                 title: "¡Éxito!",
@@ -244,7 +229,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
                         </Button>
                     </div>
                 )}
-                <p className="text-xs text-muted-foreground">
+                <p className="text-base text-muted-foreground">
                     {username === 'Guest' ? 'Sign in to save your username' : 'Click the pencil to change your name'}
                 </p>
             </div>

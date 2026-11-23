@@ -9,6 +9,11 @@ export default {
   ],
   theme: {
     extend: {
+      // Arial en todo el sitio (sans y serif; mono se mantiene)
+      fontFamily: {
+        sans: ['Arial', 'Helvetica', 'sans-serif'],
+        serif: ['Arial', 'Helvetica', 'sans-serif'],
+      },
       colors: {
         'study-purple': '#7C3AED', // Color personalizado
         background: 'hsl(var(--background))',

@@ -5,7 +5,7 @@ import '@/lib/suppressConsoleWarnings';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
-import { removeUnavailableVideo } from '@/lib/videoAvailability';
+import { removeLinkIfUnavailable } from '@/lib/dataApi';
 import { useAudio } from '@/contexts/AudioContext';
 import { useIframeTarget } from '@/contexts/IframeTargetContext';
 
@@ -137,26 +137,19 @@ export default function LazyYouTubeEmbed({
     '3.jpg',                  // 120x90
   ];
 
-  /** Consulta a YouTube; si el video no existe (404 "Video not found") lo borra de la BD y de la UI. */
+  /** Pide al servidor comprobar el video; si no existe lo borra de la BD y de la UI. */
   const availabilityCheckedRef = useRef(false);
   const checkAndRemoveIfUnavailable = () => {
     if (availabilityCheckedRef.current) return;
     availabilityCheckedRef.current = true;
-    fetch(`/api/youtube-info?videoId=${videoId}`)
-      .then(async (res) => {
-        if (res.status !== 404) return;
-        const body = await res.json().catch(() => null);
-        if (body?.error !== 'Video not found') return;
-        try {
-          await removeUnavailableVideo(linkId);
-        } catch {
-          // si falla el borrado en BD, igual lo quitamos de la UI
-        }
-        onUnavailable?.();
-      })
-      .catch(() => {
+    // El servidor verifica con YouTube y borra el link solo si el video realmente no existe
+    removeLinkIfUnavailable(linkId).then(({ data, error }) => {
+      if (error) {
         availabilityCheckedRef.current = false; // permitir reintento tras error de red
-      });
+        return;
+      }
+      if (data?.removed) onUnavailable?.();
+    });
   };
 
   const handleThumbnailError = () => {
@@ -229,8 +222,8 @@ export default function LazyYouTubeEmbed({
                     <path d="M8 5v14l11-7z"/>
                   </svg>
                 </div>
-                <span className="text-gray-400 text-sm">Miniatura no disponible</span>
-                <p className="text-gray-500 text-xs mt-1">Video ID: {videoId}</p>
+                <span className="text-gray-400 text-base">Miniatura no disponible</span>
+                <p className="text-gray-500 text-base mt-1">Video ID: {videoId}</p>
               </div>
             </div>
           )}
@@ -256,7 +249,7 @@ export default function LazyYouTubeEmbed({
                 )}
               </div>
               {shouldPlay && (
-                <div className="bg-black bg-opacity-70 px-3 py-1 rounded-full text-white text-xs font-medium">
+                <div className="bg-black bg-opacity-70 px-3 py-1 rounded-full text-white text-base font-medium">
                   Reproduciendo en background
                 </div>
               )}

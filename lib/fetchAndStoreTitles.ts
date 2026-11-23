@@ -1,5 +1,5 @@
 import { extractYouTubeId } from '@/components/embeds/LazyYouTubeEmbed';
-import { supabase } from '@/lib/supabase';
+import { updateLinkTitle } from '@/lib/dataApi';
 import { youtubeCache } from '@/lib/youtubeCache';
 
 interface Link {
@@ -44,7 +44,7 @@ function validateTitleForDB(title: string | null | undefined): string | null {
     return null;
   }
   
-  // Check max length (Supabase text fields typically support up to 255 chars, but let's be safe)
+  // Check max length (la base de datos text fields typically support up to 255 chars, but let's be safe)
   const MAX_TITLE_LENGTH = 200;
   if (normalized.length > MAX_TITLE_LENGTH) {
     // Truncate to max length
@@ -105,27 +105,23 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
       // Use cached title - always update database to ensure it's stored
       const validatedTitle = validateTitleForDB(cached.title);
       if (validatedTitle) {
-        // Always update Supabase with cached title (even if it's the same)
+        // Always update la base de datos with cached title (even if it's the same)
         // This ensures the title is stored in the database
         updatePromisesFromCache.push(
-          supabase
-            .from('links')
-            .update({ title: validatedTitle })
-            .eq('id', link.id)
-            .select()
+          updateLinkTitle(link.id, validatedTitle)
             .then(({ error, data }) => {
               if (error) {
                 console.warn(
-                  `Failed to update cached title in Supabase for link ${link.id} (${link.url}):`,
+                  `Failed to update cached title in la base de datos for link ${link.id} (${link.url}):`,
                   error.message,
                   error.details || '',
                   error.hint || ''
                 );
               } else {
-                // Successfully saved to Supabase
+                // Successfully saved to la base de datos
                 if (process.env.NODE_ENV === 'development' && updatePromisesFromCache.length <= 3) {
                   // Only log for small batches to reduce spam
-                  console.log(`✓ Saved cached title to Supabase`);
+                  console.log(`✓ Saved cached title to la base de datos`);
                 }
               }
               return { error: error as unknown, data: data as unknown };
@@ -201,27 +197,23 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
           // Store in cache
           youtubeCache.set(videoId, validatedTitle, videoInfo.channelTitle || '');
           
-          // Always update Supabase with the fetched title
+          // Always update la base de datos with the fetched title
           // This ensures the title is stored in the database
           updatePromises.push(
-            supabase
-              .from('links')
-              .update({ title: validatedTitle })
-              .eq('id', link.id)
-              .select()
+            updateLinkTitle(link.id, validatedTitle)
               .then(({ error, data }) => {
                 if (error) {
                   console.warn(
-                    `Failed to update title in Supabase for link ${link.id} (${link.url}):`,
+                    `Failed to update title in la base de datos for link ${link.id} (${link.url}):`,
                     error.message,
                     error.details || '',
                     error.hint || '',
                     `Title: "${validatedTitle.substring(0, 50)}..."`
                   );
                 } else {
-                  // Successfully saved to Supabase
+                  // Successfully saved to la base de datos
                   if (process.env.NODE_ENV === 'development') {
-                    console.log(`✓ Saved title to Supabase for video ${videoId}: "${validatedTitle.substring(0, 50)}..."`);
+                    console.log(`✓ Saved title to la base de datos for video ${videoId}: "${validatedTitle.substring(0, 50)}..."`);
                   }
                 }
                 return { error: error as unknown, data: data as unknown };
@@ -251,7 +243,7 @@ export async function fetchAndStoreTitles(links: Link[]): Promise<void> {
 /**
  * Fetch and store titles for a single link
  * Only fetches if: link is YouTube AND title is null or invalid
- * Always saves to Supabase after fetching
+ * Always saves to la base de datos after fetching
  */
 export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
   // Only process YouTube links
@@ -272,26 +264,22 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
       // Use cached title - always update database to ensure it's stored
       const validatedTitle = validateTitleForDB(cached.title);
       if (validatedTitle) {
-        // Always update Supabase with cached title (even if it's the same)
+        // Always update la base de datos with cached title (even if it's the same)
         // This ensures the title is stored in the database
-        const { error } = await supabase
-          .from('links')
-          .update({ title: validatedTitle })
-          .eq('id', link.id)
-          .select();
+        const { error } = await updateLinkTitle(link.id, validatedTitle);
         
         if (error) {
           console.warn(
-            `Failed to update cached title in Supabase for link ${link.id} (${link.url}):`,
+            `Failed to update cached title in la base de datos for link ${link.id} (${link.url}):`,
             error.message,
             error.details || '',
             error.hint || ''
           );
         } else {
-          // Successfully saved to Supabase
+          // Successfully saved to la base de datos
           if (process.env.NODE_ENV === 'development') {
             // Only log for individual fetches, not batch operations
-            console.log(`✓ Saved title to Supabase`);
+            console.log(`✓ Saved title to la base de datos`);
           }
         }
       }
@@ -326,27 +314,23 @@ export async function fetchAndStoreTitle(link: Link): Promise<string | null> {
       // Store in cache first
       youtubeCache.set(videoId, validatedTitle, data.channelTitle || '');
       
-      // Always update Supabase with the fetched title (even if it's the same)
+      // Always update la base de datos with the fetched title (even if it's the same)
       // This ensures the title is stored in the database
-      const { error } = await supabase
-        .from('links')
-        .update({ title: validatedTitle })
-        .eq('id', link.id)
-        .select();
+      const { error } = await updateLinkTitle(link.id, validatedTitle);
 
       if (error) {
         console.warn(
-          `Failed to update title in Supabase for link ${link.id} (${link.url}):`,
+          `Failed to update title in la base de datos for link ${link.id} (${link.url}):`,
           error.message,
           error.details || '',
           error.hint || '',
           `Title: "${validatedTitle.substring(0, 50)}..."`
         );
       } else {
-        // Successfully saved to Supabase
+        // Successfully saved to la base de datos
         if (process.env.NODE_ENV === 'development') {
           // Only log for individual fetches, not batch operations
-          console.log(`✓ Saved title to Supabase`);
+          console.log(`✓ Saved title to la base de datos`);
         }
       }
 

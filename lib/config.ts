@@ -7,12 +7,6 @@ export const config = {
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',
   
-  // Supabase configuration
-  supabase: {
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  },
-  
   // Get the appropriate redirect URL for OAuth
   getRedirectUrl: (): string => {
     if (typeof window !== 'undefined') {

@@ -174,7 +174,7 @@ export default function RootLayout({
         />
       </head>
       <body className={cn(
-        "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased",
+        "min-h-screen bg-[#1a1814] text-[#e6e2d9] antialiased font-sans",
         geistSans.variable,
         geistMono.variable
       )}>

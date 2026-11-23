@@ -79,7 +79,7 @@ export default function CombinationCard({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            className="flex items-center gap-2 text-base text-gray-600 dark:text-gray-400"
           >
             <ExternalLink size={16} />
             <span>{links} {links === 1 ? 'enlace' : 'enlaces'}</span>
@@ -135,7 +135,7 @@ export default function CombinationCard({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="mt-4 text-sm opacity-75"
+              className="mt-4 text-base opacity-75"
             >
               Presiona ESC o haz clic fuera para cerrar
             </motion.p>

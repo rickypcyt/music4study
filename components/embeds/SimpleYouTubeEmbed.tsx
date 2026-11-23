@@ -47,12 +47,12 @@ export default function SimpleYouTubeEmbed({
     return (
       <div className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`}>
         <div className="text-center p-4">
-          <p className="text-gray-600 text-sm">Error loading video</p>
+          <p className="text-gray-600 text-base">Error loading video</p>
           <a 
             href={`https://www.youtube.com/watch?v=${videoId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm underline mt-2 inline-block"
+            className="text-blue-600 hover:text-blue-800 text-base underline mt-2 inline-block"
           >
             Watch on YouTube
           </a>

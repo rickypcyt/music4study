@@ -39,15 +39,40 @@ export default function GenreCloud({ tags, onGenreClick, isActive = true }: Genr
   const animationFrameRef = useRef<number | undefined>(undefined);
   const nodesRef = useRef<Node[]>([]);
 
+  // Tamaño real del contenedor (ocupa todo el espacio disponible de la página)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width < 50 || height < 50) return; // oculto (display:none) o aún sin layout
+      // Debounce: no recolocar los nodos en cada pixel mientras se redimensiona la ventana
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setSize((prev) =>
+          prev && Math.abs(prev.w - width) < 4 && Math.abs(prev.h - height) < 4 ? prev : { w: Math.round(width), h: Math.round(height) },
+        );
+      }, 150);
+    });
+    ro.observe(el);
+    return () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, []);
+
   // Memoizar dimensiones y configuración
   const config = useMemo(() => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    const width = typeof window !== 'undefined' ? window.innerWidth * 0.9 : 800;
-    const height = isMobile ? 800 : 700;
+    const width = size?.w ?? 0;
+    const height = size?.h ?? 0;
+    const isMobile = width > 0 ? width < 640 : typeof window !== 'undefined' && window.innerWidth < 640;
     const padding = isMobile ? 10 : 20;
-    
+
     return { width, height, padding, isMobile };
-  }, []);
+  }, [size]);
 
   // Memoizar escala de tamaños
   const sizeScale = useMemo(() => {
@@ -122,7 +147,7 @@ export default function GenreCloud({ tags, onGenreClick, isActive = true }: Genr
 
   // Inicializar nodos
   useEffect(() => {
-    if (!sizeScale || tags.length === 0) return;
+    if (!sizeScale || tags.length === 0 || !size) return;
 
     const initialNodes: Node[] = [];
     
@@ -145,7 +170,7 @@ export default function GenreCloud({ tags, onGenreClick, isActive = true }: Genr
 
     nodesRef.current = initialNodes;
     setNodes(initialNodes);
-  }, [tags, sizeScale, findValidPosition]);
+  }, [tags, sizeScale, findValidPosition, size]);
 
   // Animación optimizada con useCallback
   const animate = useCallback(() => {
@@ -283,12 +308,13 @@ export default function GenreCloud({ tags, onGenreClick, isActive = true }: Genr
   }, [tags]);
 
   return (
-    <div className="flex justify-center items-center w-full overflow-hidden">
-      <div 
+    // Ocupa todo el espacio libre de la página; sin scrollbars (los nodos rebotan dentro del área)
+    <div className="relative flex-1 w-full min-h-[420px]">
+      <div
         ref={containerRef}
-        className="w-[90vw] h-[800px] sm:h-[700px] relative overflow-y-auto"
+        className="absolute inset-0 overflow-hidden"
       >
-        <div className="min-h-full w-full">
+        <div className="h-full w-full">
           {nodes.map((node) => (
             <button
               key={node.id}
@@ -315,10 +341,10 @@ export default function GenreCloud({ tags, onGenreClick, isActive = true }: Genr
               onMouseLeave={() => handleMouseLeave(node.id)}
               onClick={() => onGenreClick(node.id)}
             >
-              <span className="px-2 sm:px-4 text-sm sm:text-base font-bold leading-tight">
+              <span className="px-2 sm:px-4 text-base sm:text-base font-bold leading-tight">
                 {node.id}
               </span>
-              <span className="text-xs opacity-70 mt-1">
+              <span className="text-base opacity-70 mt-1">
                 {node.value}
               </span>
             </button>

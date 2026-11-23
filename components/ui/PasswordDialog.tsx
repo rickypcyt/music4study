@@ -70,7 +70,7 @@ export default function PasswordDialog({ isOpen, onClose, onSuccess }: PasswordD
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-3">
-            <label htmlFor="password" className="text-sm font-medium text-foreground/90">
+            <label htmlFor="password" className="text-base font-medium text-foreground/90">
               Password
             </label>
             <Input
@@ -83,7 +83,7 @@ export default function PasswordDialog({ isOpen, onClose, onSuccess }: PasswordD
               autoFocus
             />
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>
+              <p className="text-base text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>
             )}
           </div>
           <div className="flex justify-end space-x-3 pt-4">

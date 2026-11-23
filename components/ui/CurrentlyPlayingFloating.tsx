@@ -152,7 +152,7 @@ export default function CurrentlyPlayingFloating() {
                         {currentlyPlayingTitle}
                       </h3>
                       {videoInfo?.channelTitle && (
-                        <p className="text-sm text-[#e6e2d9]/70">{videoInfo.channelTitle}</p>
+                        <p className="text-base text-[#e6e2d9]/70">{videoInfo.channelTitle}</p>
                       )}
                     </div>
                     {/* Slot donde el reproductor global se muestra cuando el modal está abierto */}
@@ -196,11 +196,11 @@ export default function CurrentlyPlayingFloating() {
                         onChange={(e) => setVolume(Number(e.target.value))}
                         className="w-24 sm:w-32 h-3 bg-[#e6e2d9]/10 rounded-lg appearance-none cursor-pointer border border-[#e6e2d9]/20 shrink-0"
                       />
-                      <span className="text-sm font-medium text-[#e6e2d9]/70 min-w-[3ch]">{volume}%</span>
+                      <span className="text-base font-medium text-[#e6e2d9]/70 min-w-[3ch]">{volume}%</span>
                     </div>
                   </div>
 
-                  <div className="text-sm sm:text-base font-medium text-[#e6e2d9] shrink-0">
+                  <div className="text-base sm:text-base font-medium text-[#e6e2d9] shrink-0">
                     {isPlaying ? 'Playing' : 'Paused'}
                   </div>
                 </div>

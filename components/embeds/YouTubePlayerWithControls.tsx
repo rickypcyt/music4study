@@ -273,9 +273,9 @@ export default function YouTubePlayerWithControls({
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-white text-xs">
+            <div className="flex items-center justify-between text-white text-base">
               {/* Tiempo */}
-              <div className="text-xs font-medium">
+              <div className="text-base font-medium">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </div>
 
@@ -373,7 +373,7 @@ export default function YouTubePlayerWithControls({
 
         <div className="flex items-center justify-between text-white">
           {/* Tiempo actual / duración */}
-          <div className="text-xs font-medium">
+          <div className="text-base font-medium">
             {formatTime(currentTime)} / {formatTime(duration)}
           </div>
 

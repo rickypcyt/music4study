@@ -19,6 +19,9 @@ interface NavbarProps {
   onHomeClick: () => void;
   onSubmitClick: () => void;
   onCombinationsClick: () => void;
+  user?: { name: string; username?: string | null; image: string | null } | null;
+  onLoginClick?: () => void;
+  onProfileClick?: () => void;
   onSortChange: (sort: string) => void;
   currentSort: string;
   onThemeChange: (theme: string) => void;
@@ -31,6 +34,9 @@ export default function Navbar({
   onHomeClick,
   onSubmitClick,
   onCombinationsClick,
+  user,
+  onLoginClick,
+  onProfileClick,
   onSortChange,
   currentSort,
   onThemeChange,
@@ -147,6 +153,24 @@ export default function Navbar({
         <ArrowUpDown className="h-5 w-5 lg:h-6 lg:w-6 mr-2" />
         <span>Sort</span>
       </button>
+      {user ? (
+        <button
+          onClick={onProfileClick}
+          title="Profile"
+          className="inline-flex items-center justify-center gap-2 px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {user.image && <img src={user.image} alt="" referrerPolicy="no-referrer" className="h-6 w-6 rounded-full" />}
+          <span className="max-w-[8rem] truncate">{user.username ? `@${user.username}` : user.name}</span>
+        </button>
+      ) : (
+        <button
+          onClick={onLoginClick}
+          className="inline-flex items-center justify-center px-3 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
+        >
+          Sign in
+        </button>
+      )}
       <Button
         onClick={onSubmitClick}
         className="bg-primary hover:bg-primary/90 text-primary-foreground text-base lg:text-lg px-3 lg:px-4 py-2 transition-colors duration-200"
@@ -161,11 +185,11 @@ export default function Navbar({
       <div className="w-full px-4 md:px-5 lg:px-10 xl:px-12">
         <div className="flex justify-center h-16">
           {/* Main Content: Logo, Nav Links, Controls */}
-          <div className="flex items-center justify-between w-full">
+          <div className="flex items-center justify-between w-full md:grid md:grid-cols-[1fr_auto_1fr]">
 
             {/* Logo */}
-            <div className="flex-shrink-0">
-              <h1 className="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-mono text-foreground tracking-wider font-light">
+            <div className="flex-shrink-0 md:justify-self-start">
+              <h1 className="text-2xl sm:text-3xl md:text-3xl lg:text-4xl font-sans text-foreground tracking-wider font-light">
                 Music4Study
               </h1>
             </div>
@@ -176,7 +200,7 @@ export default function Navbar({
             </div>
 
             {/* Desktop Controls */}
-            <div className="hidden md:flex items-center">
+            <div className="hidden md:flex items-center md:justify-self-end">
               <ControlButtons />
             </div>
 
@@ -217,6 +241,12 @@ export default function Navbar({
                 >
                   <ArrowUpDown className="h-5 w-5 mr-2" />
                   <span>Sort</span>
+                </button>
+                <button
+                  onClick={user ? onProfileClick : onLoginClick}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors"
+                >
+                  {user ? `Profile (${user.username ? `@${user.username}` : user.name.split(' ')[0]})` : 'Sign in'}
                 </button>
                 <Button
                   onClick={onSubmitClick}

@@ -1,75 +1,51 @@
-import { config } from './config';
-import { createClient } from '@/app/utils/supabase/client';
+// SOLO SERVIDOR: configuración de Better Auth (login con Google, sesiones guardadas en Neon).
+import { betterAuth } from 'better-auth';
+import { dash } from '@better-auth/infra';
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { combinations, db, links } from '@/db';
+import { isNull } from 'drizzle-orm';
+import * as schema from '@/db/auth-schema';
 
-// Cliente de Supabase
-const supabase = createClient();
+export const auth = betterAuth({
+  database: drizzleAdapter(db, { provider: 'pg', schema }),
+  // username solo lo escribe el servidor (/api/me/username), nunca el cliente directamente
+  user: {
+    additionalFields: {
+      username: { type: 'string', required: false, input: false },
+    },
+  },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        // Cuando se registra el dueño original, se le asignan los links/combinaciones que existían sin dueño
+        after: async (newUser) => {
+          const owner = process.env.LEGACY_LINKS_OWNER_EMAIL?.trim().toLowerCase();
+          if (!owner || newUser.email.toLowerCase() !== owner) return;
+          await db.update(links).set({ userId: newUser.id }).where(isNull(links.userId));
+          await db.update(combinations).set({ userId: newUser.id }).where(isNull(combinations.userId));
+        },
+      },
+    },
+  },
+  // Dashboard de Better Auth (usa BETTER_AUTH_API_KEY)
+  plugins: [dash()],
+  // Orígenes permitidos para el login (localhost en desarrollo + el sitio en producción)
+  trustedOrigins: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://music4study.com',
+  ],
+});
 
-// Función para iniciar sesión con Google
-export const signInWithGoogle = async () => {
-  try {
-    // Obtener la URL de redirección apropiada
-    const redirectTo = config.getRedirectUrl();
-    
-    console.log('Starting Google OAuth with redirectTo:', redirectTo);
-    console.log('Current environment:', process.env.NODE_ENV);
-    console.log('Is localhost:', config.isLocalhost());
-    
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        }
-      }
-    });
-    
-    if (error) {
-      console.error('Supabase OAuth error:', error);
-      throw error;
-    }
-    
-    console.log('OAuth initiated successfully:', data);
-    return { data, error: null };
-    
-  } catch (error) {
-    console.error('Error in signInWithGoogle:', error);
-    return { data: null, error };
-  }
-};
+export type Session = typeof auth.$Infer.Session;
 
-// Función para cerrar sesión
-export const signOut = async () => {
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) throw error;
-    return { error: null };
-  } catch (error) {
-    console.error('Error signing out:', error);
-    return { error };
-  }
-};
-
-// Función para obtener el usuario actual
-export const getCurrentUser = async () => {
-  try {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    return { user, error: null };
-  } catch (error) {
-    console.error('Error getting current user:', error);
-    return { user: null, error };
-  }
-};
-
-// Función para verificar si el usuario está autenticado
-export const isAuthenticated = async (): Promise<boolean> => {
-  try {
-    const { user } = await getCurrentUser();
-    return !!user;
-  } catch {
-    return false;
-  }
-};
-
+/** Sesión del request actual (o null). Para usar en route handlers. */
+export async function getSession(request: Request) {
+  return auth.api.getSession({ headers: request.headers });
+}
