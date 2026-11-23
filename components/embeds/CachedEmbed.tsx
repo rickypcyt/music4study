@@ -40,6 +40,8 @@ export default function CachedEmbed({
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+  // Todas las plataformas usan 16:9 como YouTube
+  const frameClass = 'w-full aspect-video';
 
   // Persist last played timestamp per linkId in localStorage
   const recordLastPlayed = () => {
@@ -140,8 +142,8 @@ export default function CachedEmbed({
 
   if (isLoading) {
     return (
-      <div ref={embedRef} className={`w-full aspect-video ${className}`}>
-        <Skeleton className="w-full h-full" />
+      <div ref={embedRef} className={`${frameClass} ${className}`}>
+        <Skeleton className="w-full h-full rounded-xl" />
       </div>
     );
   }
@@ -211,7 +213,7 @@ export default function CachedEmbed({
   return (
     <div 
       ref={embedRef}
-      className={`w-full aspect-video ${className}`}
+      className={`${frameClass} ${className}`}
       dangerouslySetInnerHTML={{ __html: embedData?.html || '' }}
     />
   );

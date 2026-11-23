@@ -5,6 +5,7 @@ import '@/lib/suppressConsoleWarnings';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import Image from 'next/image';
+import { removeUnavailableVideo } from '@/lib/videoAvailability';
 import { useAudio } from '@/contexts/AudioContext';
 import { useIframeTarget } from '@/contexts/IframeTargetContext';
 
@@ -27,6 +28,7 @@ export default function LazyYouTubeEmbed({
   className = '',
   thumbnailQuality = 'hqdefault',
   onVideoClick,
+  onUnavailable,
   priority = false
 }: LazyYouTubeEmbedProps) {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -135,9 +137,32 @@ export default function LazyYouTubeEmbed({
     '3.jpg',                  // 120x90
   ];
 
+  /** Consulta a YouTube; si el video no existe (404 "Video not found") lo borra de la BD y de la UI. */
+  const availabilityCheckedRef = useRef(false);
+  const checkAndRemoveIfUnavailable = () => {
+    if (availabilityCheckedRef.current) return;
+    availabilityCheckedRef.current = true;
+    fetch(`/api/youtube-info?videoId=${videoId}`)
+      .then(async (res) => {
+        if (res.status !== 404) return;
+        const body = await res.json().catch(() => null);
+        if (body?.error !== 'Video not found') return;
+        try {
+          await removeUnavailableVideo(linkId);
+        } catch {
+          // si falla el borrado en BD, igual lo quitamos de la UI
+        }
+        onUnavailable?.();
+      })
+      .catch(() => {
+        availabilityCheckedRef.current = false; // permitir reintento tras error de red
+      });
+  };
+
   const handleThumbnailError = () => {
-    console.warn(`No se pudo cargar la miniatura para el video ${videoId} (attempt ${currentThumbnailAttempt})`);
-    
+    // Primera miniatura caída: probablemente el video fue eliminado; verificar antes de seguir probando
+    if (currentThumbnailAttempt === 0) checkAndRemoveIfUnavailable();
+
     const nextAttempt = currentThumbnailAttempt + 1;
     if (nextAttempt < thumbnailFallbacks.length) {
       setCurrentThumbnailAttempt(nextAttempt);
@@ -170,6 +195,7 @@ export default function LazyYouTubeEmbed({
           className="relative w-full h-full cursor-pointer group"
           onClick={(e) => {
             e.preventDefault();
+            checkAndRemoveIfUnavailable();
             if (onVideoClick) {
               onVideoClick();
             } else {

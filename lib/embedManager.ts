@@ -82,19 +82,21 @@ class EmbedManager {
           case 'spotify':
             const spotifyId = this.extractSpotifyId(url);
             embedHtml = `<iframe
-              src="https://open.spotify.com/embed/${spotifyId}"
+              src="https://open.spotify.com/embed/${spotifyId}?utm_source=generator&theme=0"
               class="w-full h-full"
               allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
               allowFullScreen
               loading="lazy"
               importance="low"
-              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-forms"
+              sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox allow-forms"
+              style="border-radius:12px;border:0"
             ></iframe>`;
             break;
           case 'soundcloud':
             embedHtml = `<iframe 
-              src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false" 
+              src="https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&visual=true&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false" 
               class="w-full h-full" 
+              style="border-radius:12px"
               scrolling="no" 
               frameBorder="no" 
               allow="autoplay"

@@ -33,18 +33,6 @@ const nextConfig: NextConfig = {
       '@radix-ui/react-slot',
       '@radix-ui/react-toast'
     ],
-    turbo: {
-      rules: {
-        '*.{ts,tsx}': [
-          {
-            loader: 'tsx',
-            options: {
-              fastRefresh: true,
-            },
-          },
-        ],
-      },
-    },
   },
   // Deshabilitar la generación estática para rutas específicas
   generateBuildId: async () => 'build-' + Date.now(),

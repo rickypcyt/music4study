@@ -3,20 +3,22 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAndStoreTitle, fetchAndStoreTitles } from '@/lib/fetchAndStoreTitles';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
-import GenreCloud from '@/components/ui/GenreCloud';
 import { Input } from '@/components/ui/input';
 import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
 import SimpleGrid from '@/components/ui/SimpleGrid';
-import SubmitForm from './submit/SubmitForm';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/hooks/use-toast';
+
+const GenreCloud = dynamic(() => import('@/components/ui/GenreCloud'), { ssr: false });
+const SubmitForm = dynamic(() => import('./submit/SubmitForm'), { ssr: false });
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -489,6 +491,12 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     router.replace(`/?${params.toString()}`, { scroll: false });
   }, [router]);
 
+  const handleCombinationsClick = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set('view', 'combinations');
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router]);
+
   const handleSortChange = useCallback((sortBy: string) => {
     const newSort = sortBy as SortType;
     setCurrentSort(newSort);
@@ -690,7 +698,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     const view = searchParams.get('view');
     if (searchParams.has('genre')) {
       setCurrentView('home');
-    } else if (view === 'genres') {
+    } else if (view === 'genres' || view === 'combinations') {
       setCurrentView(view);
     } else {
       setCurrentView('home');
@@ -747,6 +755,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         onGenresClick={handleGenresClick}
         onHomeClick={handleHomeClick}
         onSubmitClick={handleSubmitClick}
+        onCombinationsClick={handleCombinationsClick}
         onSortChange={handleSortChange}
         currentSort={currentSort}
         onThemeChange={setCurrentTheme}
@@ -768,8 +777,55 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
               isActive={currentView === 'genres'}
             />
           </div>
+          {/* Combinations view — solo se monta cuando está activa */}
+          {currentView === 'combinations' && (
+            <div className="space-y-8">
+              <div className="text-center space-y-2 pt-6">
+                <h2 className="text-5xl font-serif text-foreground">Combinations</h2>
+                <p className="text-foreground/70 text-lg max-w-3xl mx-auto">
+                  Create and manage your custom playlists. Find the perfect combination of sounds by mixing different genres.
+                </p>
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  onClick={() => setIsCreateCombinationModalOpen(true)}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground text-lg px-8 py-6"
+                >
+                  Create Combination
+                </Button>
+              </div>
+              <div className="space-y-8">
+                {combinations.length === 0 && !loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-foreground/70">No combinations yet. Create your first one!</p>
+                  </div>
+                ) : (
+                  combinations.map((combination) => (
+                    <div key={combination.id} className="space-y-4 p-6 border border-foreground/10 rounded-lg">
+                      <h3 className="text-2xl font-serif text-foreground">{combination.name}</h3>
+                      {combination.links.length > 0 ? (
+                        <SimpleGrid
+                          items={combination.links}
+                          renderItem={(link: Link) => <LinkCard key={`combo-${combination.id}-${link.id}`} link={link} />}
+                          columns={4}
+                        />
+                      ) : (
+                        <p className="text-foreground/70">No tracks in this combination yet.</p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
           {/* Home view — always mounted, hidden when not active */}
-          <div className={currentView === 'home' ? 'flex-1 flex flex-col' : 'hidden'}>
+          {/* No usar display:none: pausaría el iframe de YouTube que vive dentro de la card */}
+          <div
+            aria-hidden={currentView !== 'home'}
+            className={currentView === 'home'
+              ? 'flex-1 flex flex-col'
+              : 'fixed top-0 left-[-200vw] w-screen h-screen overflow-hidden pointer-events-none'}
+          >
               {selectedGenre && (
                 <div className="text-center mb-8 pt-6">
                   <h1 className="text-5xl font-serif text-foreground mb-4 tracking-wide">
