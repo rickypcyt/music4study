@@ -22,6 +22,8 @@
     "@radix-ui/react-toast": "^1.2.6",
     "@tailwindcss/line-clamp": "^0.4.4",
     "@tanstack/react-virtual": "^3.13.9",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.1.0",
     "better-auth": "^1.7.27",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

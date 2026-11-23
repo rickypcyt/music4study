@@ -1,6 +1,8 @@
 import './globals.css';
 
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import PageTransition from '@/components/ui/PageTransition';
 import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
 import ResourcePreloader from '@/components/ResourcePreloader';
@@ -136,6 +138,8 @@ export default function RootLayout({
           </ClientProvider>
         <Toaster />
         <PerformanceMonitor />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
