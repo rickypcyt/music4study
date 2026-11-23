@@ -1,4 +1,4 @@
-import { boolean, index, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, index, integer, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // user_id queda nullable y sin FK por ahora: se enlaza con la tabla de usuarios cuando se añada el auth.
 export const links = pgTable('links', {
@@ -34,3 +34,10 @@ export const combinationLinks = pgTable('combination_links', {
   index('combination_links_link_idx').on(t.linkId),
 ]);
 export * from './auth-schema';
+
+// Contador diario de llamadas a APIs externas (YouTube Data API: 1 unidad de cuota por llamada)
+export const apiUsage = pgTable('api_usage', {
+  day: date('day').notNull(),
+  service: text('service').notNull(),
+  calls: integer('calls').notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.day, t.service] })]);

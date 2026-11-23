@@ -3,6 +3,8 @@ import { db, links } from '@/db';
 import { serializeLink } from '@/db/serialize';
 import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
+import { revalidateTag } from 'next/cache';
+import { userStatsTag } from '@/lib/userStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
         dateAdded: new Date(),
       })
       .returning();
+    revalidateTag(userStatsTag(session.user.id)); // el modal de perfil mostrará el track nuevo
     return NextResponse.json(serializeLink(row), { status: 201 });
   } catch (error) {
     console.error('POST /api/links:', error);

@@ -11,7 +11,17 @@ export interface LandingStats {
   platforms: { youtube: number; spotify: number; soundcloud: number };
   recent: { id: string; title: string; genre: string; type: string; username: string; url: string; dateAdded: string | null }[];
   curators: { name: string; count: number }[];
+  /** Un track público por plataforma para que la landing pueda reproducirlos */
+  demo: { youtube: DemoTrack | null; spotify: DemoTrack | null; soundcloud: DemoTrack | null };
   generatedAt: string;
+}
+
+export interface DemoTrack {
+  id: string;
+  title: string;
+  genre: string;
+  username: string;
+  url: string;
 }
 
 interface Row {
@@ -24,6 +34,9 @@ interface Row {
   platforms: { youtube: number; spotify: number; soundcloud: number };
   recent: { id: string; title: string | null; genre: string | null; type: string | null; username: string | null; url: string; date_added: string | null }[];
   curators: { name: string; count: number }[];
+  demo_youtube: DemoTrack | null;
+  demo_spotify: DemoTrack | null;
+  demo_soundcloud: DemoTrack | null;
 }
 
 async function queryStats(): Promise<LandingStats> {
@@ -59,7 +72,22 @@ async function queryStats(): Promise<LandingStats> {
           select username as name, count(*)::int as count from links
           where is_public and username is not null group by username order by count(*) desc limit 5
         ) c
-      ), '[]'::json) as curators
+      ), '[]'::json) as curators,
+      (select row_to_json(d) from (
+        select id, coalesce(title, '') as title, coalesce(genre, '') as genre, coalesce(username, '') as username, url from links
+        where is_public and coalesce(title, '') <> '' and (url ilike '%youtube.com/watch%' or url ilike '%youtu.be/%')
+        order by date_added desc limit 1
+      ) d) as demo_youtube,
+      (select row_to_json(d) from (
+        select id, coalesce(title, '') as title, coalesce(genre, '') as genre, coalesce(username, '') as username, url from links
+        where is_public and url ilike '%open.spotify.com/%'
+        order by date_added desc limit 1
+      ) d) as demo_spotify,
+      (select row_to_json(d) from (
+        select id, coalesce(title, '') as title, coalesce(genre, '') as genre, coalesce(username, '') as username, url from links
+        where is_public and url ilike '%soundcloud.com/%'
+        order by date_added desc limit 1
+      ) d) as demo_soundcloud
   `);
 
   const row = (result as unknown as { rows: Row[] }).rows[0];
@@ -77,6 +105,7 @@ async function queryStats(): Promise<LandingStats> {
       dateAdded: r.date_added ? new Date(r.date_added).toISOString() : null,
     })),
     curators: row.curators,
+    demo: { youtube: row.demo_youtube, spotify: row.demo_spotify, soundcloud: row.demo_soundcloud },
     generatedAt: new Date().toISOString(),
   };
 }

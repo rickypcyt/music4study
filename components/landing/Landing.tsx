@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { LandingStats } from '@/lib/stats';
+import { embedSrc } from '@/lib/embedSrc';
 import { extractYouTubeId } from '@/lib/youtubeId';
 
 type Stats = LandingStats;
@@ -55,26 +57,21 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
   );
 }
 
-/** Barras de ecualizador animadas al fondo del hero (determinista: sin Math.random para no romper la hidratación) */
-function EqualizerBackdrop() {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-28 items-end justify-center gap-1 px-2 opacity-20" aria-hidden="true">
-      {Array.from({ length: 56 }, (_, i) => (
-        <span
-          key={i}
-          className="m4s-eq-bar flex-1 max-w-[10px]"
-          style={{ animationDelay: `${((i * 37) % 100) / 100}s`, animationDuration: `${0.8 + ((i * 53) % 90) / 100}s` }}
-        />
-      ))}
-    </div>
-  );
-}
-
-export default function Landing({ initialStats, onSignIn }: { initialStats: LandingStats; onSignIn: () => void }) {
+export default function Landing({
+  initialStats,
+  onSignIn,
+  afterHero,
+}: {
+  initialStats: LandingStats;
+  onSignIn: () => void;
+  /** Contenido que se muestra justo debajo del hero (la demo reproducible) */
+  afterHero?: React.ReactNode;
+}) {
   // Llega ya calculado desde el servidor: la primera pintura trae los números reales, sin esperar ni parpadeo
   const [stats, setStats] = useState<Stats | null>(initialStats);
   const [now, setNow] = useState(() => Date.now());
   const [fresh, setFresh] = useState<Set<string>>(new Set());
+  const [playing, setPlaying] = useState<Record<string, boolean>>({});
   const knownIds = useRef<Set<string> | null>(new Set(initialStats.recent.map((r) => r.id)));
 
   const load = useCallback(async () => {
@@ -133,7 +130,6 @@ export default function Landing({ initialStats, onSignIn }: { initialStats: Land
           <div className="m4s-orb -right-20 top-10 h-72 w-72 bg-[#7C3AED]/25" style={{ animationDelay: '-6s' }} />
           <div className="m4s-orb bottom-0 left-1/3 h-64 w-64 bg-[#ff5500]/15" style={{ animationDelay: '-12s' }} />
         </div>
-        <EqualizerBackdrop />
 
         <div className="relative grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div className="space-y-6">
@@ -141,13 +137,14 @@ export default function Landing({ initialStats, onSignIn }: { initialStats: Land
               <span className="m4s-live-dot" /> Live · updates every 10 seconds
             </div>
             <h1 className="text-4xl md:text-6xl font-bold leading-tight tracking-tight text-foreground">
-              Your music library
+              Study music that
               <br />
-              for studying.
+              helps you focus.
             </h1>
             <p className="max-w-xl text-lg leading-relaxed text-foreground/75">
-              Save the YouTube, Spotify and SoundCloud tracks that help you focus. Organize them by genre, build your own
-              combinations and discover what other people are listening to.
+              A music library made by students: lo-fi, ambient, classical, jazz and more from YouTube, Spotify and
+              SoundCloud. Save your favorite tracks, build playlists for reading, exams and late-night sessions, and see
+              what other students are listening to.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={onSignIn} className="bg-primary px-8 py-6 text-lg text-primary-foreground hover:bg-primary/90">
@@ -168,6 +165,8 @@ export default function Landing({ initialStats, onSignIn }: { initialStats: Land
         </div>
       </section>
 
+      {afterHero}
+
       {/* JUST ADDED */}
       <section id="discover" className="scroll-mt-24 space-y-4">
         <div className="flex items-baseline justify-between">
@@ -178,36 +177,57 @@ export default function Landing({ initialStats, onSignIn }: { initialStats: Land
           {(stats?.recent ?? Array.from({ length: 8 }, () => null)).map((r, i) => {
             if (!r) return <li key={i} className="m4s-shimmer h-56 rounded-xl" />;
             const vid = extractYouTubeId(r.url);
+            const src = embedSrc(r.url);
+            const isPlaying = Boolean(playing[r.id]);
             return (
-              <li key={r.id} className={fresh.has(r.id) ? 'm4s-slide-in' : undefined}>
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block overflow-hidden rounded-xl border border-foreground/10 bg-background/40 transition-colors hover:border-foreground/30"
-                >
-                  <div className="relative aspect-video bg-gradient-to-br from-primary/30 to-[#7C3AED]/30">
-                    {vid && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`https://i.ytimg.com/vi/${vid}/mqdefault.jpg`}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
-                      />
-                    )}
-                    {r.genre && (
-                      <span className="absolute left-2 top-2 rounded-full bg-background/80 px-2.5 py-0.5 text-base text-foreground backdrop-blur-sm">{r.genre}</span>
-                    )}
-                  </div>
-                  <div className="space-y-1 p-3">
-                    <p className="line-clamp-2 min-h-[3rem] text-base font-medium leading-snug text-foreground">{r.title || r.url}</p>
-                    <p className="truncate text-base text-foreground/60">
-                      @{r.username || 'unknown'} · {timeAgo(r.dateAdded, now)}
-                    </p>
-                  </div>
-                </a>
+              <li key={r.id} className={`overflow-hidden rounded-xl border border-foreground/10 bg-background/40 ${fresh.has(r.id) ? 'm4s-slide-in' : ''}`}>
+                <div className="relative aspect-video bg-gradient-to-br from-primary/30 to-[#7C3AED]/30">
+                  {isPlaying && src ? (
+                    <iframe
+                      src={src}
+                      title={r.title || 'Track'}
+                      allow="autoplay; encrypted-media; clipboard-write; fullscreen; picture-in-picture"
+                      allowFullScreen
+                      className="absolute inset-0 h-full w-full border-0"
+                    />
+                  ) : (
+                    <>
+                      {vid && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`https://i.ytimg.com/vi/${vid}/mqdefault.jpg`}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                          onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                        />
+                      )}
+                      {src ? (
+                        <button
+                          type="button"
+                          onClick={() => setPlaying((p) => ({ ...p, [r.id]: true }))}
+                          aria-label={`Play ${r.title || 'track'}`}
+                          className="absolute inset-0 flex items-center justify-center"
+                        >
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/70 text-white">
+                            <Play className="ml-0.5 h-6 w-6" fill="currentColor" />
+                          </span>
+                        </button>
+                      ) : (
+                        <a href={r.url} target="_blank" rel="noopener noreferrer" aria-label="Open track" className="absolute inset-0" />
+                      )}
+                      {r.genre && (
+                        <span className="pointer-events-none absolute left-2 top-2 rounded-full bg-background/80 px-2.5 py-0.5 text-base text-foreground">{r.genre}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+                <div className="space-y-1 p-3">
+                  <p className="line-clamp-2 min-h-[3rem] text-base font-medium leading-snug text-foreground">{r.title || r.url}</p>
+                  <p className="truncate text-base text-foreground/60">
+                    @{r.username || 'unknown'} · {timeAgo(r.dateAdded, now)}
+                  </p>
+                </div>
               </li>
             );
           })}

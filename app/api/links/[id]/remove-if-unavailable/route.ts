@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db, links } from '@/db';
 import { eq } from 'drizzle-orm';
 import { extractYouTubeId } from '@/lib/youtubeId';
+import { allow } from '@/lib/rateLimit';
+import { getVideo } from '@/lib/youtubeApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +22,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1);
     if (!row) return NextResponse.json({ removed: true }); // ya no existe
 
-    const videoId = extractYouTubeId(row.url);
-    const key = process.env.YOUTUBE_API_KEY;
-    if (!videoId || !key) return NextResponse.json({ removed: false, reason: 'no verificable' });
+    if (!allow(_req, 'link-remove', 30)) return NextResponse.json({ removed: false, reason: 'demasiadas peticiones' }, { status: 429 });
 
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}&key=${key}`,
-      { cache: 'no-store' },
-    );
-    if (!res.ok) return NextResponse.json({ removed: false, reason: 'error de YouTube' });
-    const data = await res.json();
-    if (data.items?.length) return NextResponse.json({ removed: false, reason: 'disponible' });
+    const videoId = extractYouTubeId(row.url);
+    if (!videoId) return NextResponse.json({ removed: false, reason: 'no verificable' });
+
+    // Solo se borra si YouTube confirma que el video NO existe. Sin clave, sin presupuesto o con error: no se toca nada.
+    const v = await getVideo(videoId);
+    if (v.status === 'unavailable') return NextResponse.json({ removed: false, reason: 'no verificable' });
+    if (v.status === 'ok') return NextResponse.json({ removed: false, reason: 'disponible' });
 
     await db.delete(links).where(eq(links.id, id)); // combination_links se borra en cascada
     return NextResponse.json({ removed: true });

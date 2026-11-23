@@ -32,7 +32,6 @@ export default function CombinationCard({
       }}
       className={`
         bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden cursor-pointer
-        transition-shadow hover:shadow-xl
         ${isExpanded 
           ? 'fixed inset-4 md:inset-8 lg:inset-16 z-50' 
           : 'h-48 relative'

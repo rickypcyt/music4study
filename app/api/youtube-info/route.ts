@@ -1,61 +1,27 @@
 import { NextResponse } from 'next/server';
+import { allow } from '@/lib/rateLimit';
+import { getVideo } from '@/lib/youtubeApi';
 
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+export const dynamic = 'force-dynamic';
 
+const VIDEO_ID = /^[A-Za-z0-9_-]{6,15}$/;
+
+/** GET /api/youtube-info?videoId=… -> { title, channelTitle }. Cacheado 24 h por video y contado en api_usage. */
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const videoId = searchParams.get('videoId');
-
-  if (!videoId) {
-    return new NextResponse('Missing videoId parameter', { status: 400 });
+  const videoId = new URL(request.url).searchParams.get('videoId');
+  if (!videoId || !VIDEO_ID.test(videoId)) {
+    return NextResponse.json({ error: 'videoId inválido' }, { status: 400 });
+  }
+  if (!allow(request, 'youtube-info', 60)) {
+    return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
   }
 
-  if (!YOUTUBE_API_KEY) {
-    return new NextResponse('YouTube API key not configured', { status: 500 });
-  }
+  const v = await getVideo(videoId);
+  if (v.status === 'missing') return NextResponse.json({ error: 'Video not found' }, { status: 404 });
+  if (v.status === 'unavailable') return NextResponse.json({ error: 'YouTube no disponible' }, { status: 503 });
 
-  try {
-    const response = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${YOUTUBE_API_KEY}`,
-      { next: { revalidate: 3600 } } // Cache for 1 hour
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-      const errorMessage = errorData?.error?.message || response.statusText;
-      console.error(`YouTube API error (${response.status}):`, errorMessage);
-      return NextResponse.json(
-        { error: errorMessage, status: response.status },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    if (!data.items?.[0]?.snippet) {
-      return NextResponse.json(
-        { error: 'Video not found' },
-        { status: 404 }
-      );
-    }
-
-    const { title, channelTitle } = data.items[0].snippet;
-
-    // Return with cache headers for better performance
-    return NextResponse.json(
-      { title, channelTitle },
-      {
-        headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('Error fetching YouTube video info:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
-  }
-} 
+  return NextResponse.json(
+    { title: v.title, channelTitle: v.channelTitle },
+    { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } },
+  );
+}

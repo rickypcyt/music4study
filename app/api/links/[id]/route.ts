@@ -3,6 +3,8 @@ import { db, links } from '@/db';
 import { serializeLink } from '@/db/serialize';
 import { eq } from 'drizzle-orm';
 import { extractYouTubeId } from '@/lib/youtubeId';
+import { allow } from '@/lib/rateLimit';
+import { getVideo } from '@/lib/youtubeApi';
 import { getSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -35,18 +37,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1);
     if (!row) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
+    if (!allow(request, 'link-patch', 60)) return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
+
     const videoId = extractYouTubeId(row.url);
-    const key = process.env.YOUTUBE_API_KEY;
     let title = '';
 
-    if (videoId && key) {
-      const res = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${encodeURIComponent(videoId)}&key=${key}`,
-        { cache: 'no-store' },
-      );
-      const data = res.ok ? await res.json() : null;
-      title = (data?.items?.[0]?.snippet?.title ?? '').toString().trim().slice(0, 300);
-      if (!title) return NextResponse.json({ error: 'Título no disponible' }, { status: 404 });
+    if (videoId) {
+      // Ya tiene título: nada que hacer ni cuota que gastar
+      if (row.title && row.title.trim()) return NextResponse.json(serializeLink(row));
+      const v = await getVideo(videoId);
+      if (v.status === 'unavailable') return NextResponse.json({ error: 'YouTube no disponible' }, { status: 503 });
+      if (v.status === 'missing') return NextResponse.json({ error: 'Título no disponible' }, { status: 404 });
+      title = v.title.trim().slice(0, 300);
     } else {
       const session = await getSession(request);
       if (!session?.user) return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 });

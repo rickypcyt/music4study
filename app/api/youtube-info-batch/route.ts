@@ -1,94 +1,50 @@
 import { NextResponse } from 'next/server';
+import { allow } from '@/lib/rateLimit';
+import { callYouTube } from '@/lib/youtubeApi';
+import { db, links } from '@/db';
+import { and, ilike, isNull, or, eq } from 'drizzle-orm';
 
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
-const MAX_BATCH_SIZE = 50; // YouTube API allows up to 50 videos per request
+export const dynamic = 'force-dynamic';
+
+const MAX_BATCH_SIZE = 50; // YouTube permite hasta 50 ids por petición: 1 sola unidad de cuota para todos
+const VIDEO_ID = /^[A-Za-z0-9_-]{6,15}$/;
 
 /**
- * Batch endpoint to fetch multiple YouTube video info in one API call
- * This reduces API quota usage and improves performance
- * 
- * Usage: /api/youtube-info-batch?videoIds=id1,id2,id3
+ * GET /api/youtube-info-batch?videoIds=id1,id2,id3
+ * Una sola llamada a YouTube (1 unidad) para varios videos. Además guarda los títulos que faltan en la base
+ * de datos desde el servidor, así el cliente no tiene que pedirlos uno a uno ni gastar más cuota.
  */
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const videoIdsParam = searchParams.get('videoIds');
-
-  if (!videoIdsParam) {
-    return NextResponse.json(
-      { error: 'Missing videoIds parameter (comma-separated)' },
-      { status: 400 }
-    );
+  if (!allow(request, 'youtube-batch', 20)) {
+    return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
   }
 
-  if (!YOUTUBE_API_KEY) {
-    return NextResponse.json(
-      { error: 'YouTube API key not configured' },
-      { status: 500 }
-    );
-  }
-
-  // Parse and validate video IDs
-  const videoIds = videoIdsParam
+  const raw = new URL(request.url).searchParams.get('videoIds');
+  const videoIds = (raw ?? '')
     .split(',')
-    .map(id => id.trim())
-    .filter(id => id.length > 0)
-    .slice(0, MAX_BATCH_SIZE); // Limit to max batch size
+    .map((id) => id.trim())
+    .filter((id) => VIDEO_ID.test(id))
+    .slice(0, MAX_BATCH_SIZE);
 
   if (videoIds.length === 0) {
-    return NextResponse.json(
-      { error: 'No valid video IDs provided' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'No valid video IDs provided' }, { status: 400 });
   }
 
-  try {
-    const response = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoIds.join(',')}&key=${YOUTUBE_API_KEY}`,
-      { next: { revalidate: 3600 } } // Cache for 1 hour
-    );
+  const results = await callYouTube(videoIds);
+  if (results === null) return NextResponse.json({ error: 'YouTube no disponible' }, { status: 503 });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
-      const errorMessage = errorData?.error?.message || response.statusText;
-      console.error(`YouTube API batch error (${response.status}):`, errorMessage);
-      return NextResponse.json(
-        { error: errorMessage, status: response.status },
-        { status: response.status }
-      );
-    }
+  // Guardar en la base de datos los títulos que faltan (solo links sin título: nunca se pisa uno existente)
+  await Promise.all(
+    Object.entries(results).map(([id, v]) =>
+      db
+        .update(links)
+        .set({ title: v.title.trim().slice(0, 300) })
+        .where(and(ilike(links.url, `%${id.replace(/[\\%_]/g, '\\$&')}%`), or(isNull(links.title), eq(links.title, ''))))
+        .catch(() => undefined),
+    ),
+  );
 
-    const data = await response.json();
-
-    // Map results by video ID for easy lookup
-    const results: Record<string, { title: string; channelTitle: string }> = {};
-
-    if (data.items && Array.isArray(data.items)) {
-      data.items.forEach((item: { id: string; snippet?: { title: string; channelTitle?: string } }) => {
-        if (item.snippet) {
-          results[item.id] = {
-            title: item.snippet.title,
-            channelTitle: item.snippet.channelTitle || '',
-          };
-        }
-      });
-    }
-
-    // Return with cache headers
-    return NextResponse.json(
-      results,
-      {
-        headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-        },
-      }
-    );
-  } catch (error) {
-    console.error('Error fetching YouTube video info batch:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json(results, {
+    headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
+  });
 }
-

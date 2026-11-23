@@ -3,6 +3,8 @@ import { combinationLinks, combinations, db, links } from '@/db';
 import { serializeLink } from '@/db/serialize';
 import { desc, eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
+import { revalidateTag } from 'next/cache';
+import { userStatsTag } from '@/lib/userStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,6 +56,7 @@ export async function POST(request: Request) {
     const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 100) : '';
     if (!name) return NextResponse.json({ error: 'name requerido' }, { status: 400 });
     const [row] = await db.insert(combinations).values({ name, userId: session.user.id }).returning();
+    revalidateTag(userStatsTag(session.user.id));
     return NextResponse.json({ id: row.id, name: row.name, created_at: row.createdAt.toISOString() }, { status: 201 });
   } catch (error) {
     console.error('POST /api/combinations:', error);

@@ -63,7 +63,7 @@ export default function VideoCard({ videoId, title, thumbnail, url, className = 
   };
 
   return (
-    <div className={`bg-card rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow ${className}`}>
+    <div className={`bg-card rounded-lg overflow-hidden shadow-lg ${className}`}>
       <div className="relative">
         <Image
           src={thumbnail}

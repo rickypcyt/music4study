@@ -6,9 +6,12 @@ import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
 const LINKS = [
+  { href: '/explore', label: 'Explore' },
+  { href: '#try-it', label: 'Try it' },
   { href: '#discover', label: 'Discover' },
-  { href: '#community', label: 'Community' },
+  { href: '#about', label: 'Why it exists' },
   { href: '#how-it-works', label: 'How it works' },
+  { href: '#faq', label: 'FAQ' },
 ];
 
 interface LandingNavbarProps {
@@ -22,7 +25,7 @@ export default function LandingNavbar({ onSignIn, busy }: LandingNavbarProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-foreground/10 bg-background/80 backdrop-blur-md">
-      <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-10" aria-label="Main">
+      <nav className="mx-auto flex h-16 w-full max-w-[1920px] items-center justify-between gap-4 px-3 sm:px-5 lg:px-8" aria-label="Main">
         <a href="#top" className="shrink-0 text-2xl md:text-3xl font-light tracking-wider text-foreground">
           Music4Study
         </a>

@@ -13,7 +13,7 @@ import LinkCard from '@/components/LinkCard';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
-import ProfileModal from '@/components/ui/ProfileModal';
+import ProfileModal, { prefetchProfileStats } from '@/components/ui/ProfileModal';
 import UsernameModal from '@/components/ui/UsernameModal';
 import SimpleGrid from '@/components/ui/SimpleGrid';
 import { createCombination, fetchAutoLinks, fetchCombinations as fetchCombinationsApi, fetchLinkById, fetchLinksByIds } from '@/lib/dataApi';
@@ -155,11 +155,8 @@ const getInitialView = (pathname: string): ViewType => {
   return 'home';
 };
 
+// Determinista (igual en servidor y cliente) para no romper la hidratación; el valor guardado se aplica en un efecto
 const getInitialSort = (searchParams: URLSearchParams): SortType => {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('sort') as SortType | null;
-    if (stored) return stored;
-  }
   return (searchParams.get('sort') as SortType) || 'date';
 };
 
@@ -230,11 +227,23 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const { data: session, isPending: isSessionPending } = authClient.useSession();
   // El username se pide solo cuando ya hay sesión confirmada (nunca antes del login ni mientras carga)
+  // Precarga las estadísticas del perfil en cuanto hay sesión: al abrir el modal ya están listas
+  const profileUserId = session?.user?.id;
+  useEffect(() => {
+    if (profileUserId) prefetchProfileStats(profileUserId);
+  }, [profileUserId]);
+
   const needsUsername = !isSessionPending && Boolean(session?.user) && !session?.user?.username;
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
   const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(effectiveSearchParams));
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('sort') as SortType | null;
+      if (stored) setCurrentSort(stored);
+    } catch {}
+  }, []);
   const [currentTheme, setCurrentTheme] = useState(getInitialTheme);
   const [currentPage, setCurrentPage] = useState(() => getInitialPage(effectiveSearchParams));
 
@@ -909,6 +918,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
           onOpenChange={setIsProfileModalOpen}
           onSignOut={handleLogout}
           user={{ name: session.user.name, image: session.user.image ?? null }}
+          userId={session.user.id}
         />
       )}
 

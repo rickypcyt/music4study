@@ -21,27 +21,52 @@ interface ProfileModalProps {
   onSignOut: () => void;
   /** Datos básicos para pintar algo mientras cargan las estadísticas */
   user: { name: string; image: string | null };
+  /** Id de la cuenta: separa la caché de una sesión de la de otra */
+  userId: string;
+}
+
+// Caché en memoria del último resultado (por usuario). El modal se abre al instante con esto
+// y se actualiza en segundo plano; AppHome llama a prefetchProfileStats() al cargar la app.
+let cache: { userId: string; data: Stats } | null = null;
+const inflight = new Map<string, Promise<Stats | null>>();
+
+export function prefetchProfileStats(userId: string): Promise<Stats | null> {
+  const running = inflight.get(userId);
+  if (running) return running;
+  const p = fetch('/api/me/stats')
+    .then((r) => (r.ok ? (r.json() as Promise<Stats>) : null))
+    .then((data) => {
+      if (data) cache = { userId, data };
+      return data;
+    })
+    .catch(() => null)
+    .finally(() => inflight.delete(userId));
+  inflight.set(userId, p);
+  return p;
 }
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 
-export default function ProfileModal({ open, onOpenChange, onSignOut, user }: ProfileModalProps) {
-  const [stats, setStats] = useState<Stats | null>(null);
+export default function ProfileModal({ open, onOpenChange, onSignOut, user, userId }: ProfileModalProps) {
+  const [stats, setStats] = useState<Stats | null>(() => (cache?.userId === userId ? cache.data : null));
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setFailed(false);
-    fetch('/api/me/stats')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: Stats) => !cancelled && setStats(d))
-      .catch(() => !cancelled && setFailed(true));
+    // Con caché: se muestra al momento y se refresca sin spinner. Sin caché: skeleton hasta que llegue.
+    if (cache?.userId === userId) setStats(cache.data);
+    prefetchProfileStats(userId).then((d) => {
+      if (cancelled) return;
+      if (d) setStats(d);
+      else if (!(cache?.userId === userId)) setFailed(true);
+    });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, userId]);
 
   const maxGenre = Math.max(1, ...(stats?.topGenres.map((g) => g.count) ?? [1]));
 

@@ -105,7 +105,7 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
 
   return (
       <Card
-        className={`overflow-hidden relative group hover:shadow-lg hover:shadow-[#e6e2d9]/5 transition-all duration-300 flex flex-col ${
+        className={`overflow-hidden relative group flex flex-col ${
           'min-h-[400px]'
         } ${
           isCurrentlyPlaying ? '!border-2 !border-primary/80' : ''

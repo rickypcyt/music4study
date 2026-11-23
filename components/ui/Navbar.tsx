@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Home, Layers, Menu, Tags, X } from 'lucide-react';
+import { Compass, Home, Layers, Menu, Tags, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { useSearchParams } from 'next/navigation';
 
 import { Button } from './button';
 import Link from 'next/link';
+import SortMenu from './SortMenu';
 
 interface NavbarProps {
   currentView: 'home' | 'genres' | 'combinations';
@@ -46,7 +47,6 @@ export default function Navbar({
   currentTheme,
 }: NavbarProps) {
   const searchParams = useSearchParams();
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -63,7 +63,12 @@ export default function Navbar({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (isMobileMenuOpen && !target.closest('.mobile-menu') && !target.closest('.mobile-menu-button')) {
+      if (
+        isMobileMenuOpen &&
+        !target.closest('.mobile-menu') &&
+        !target.closest('.mobile-menu-button') &&
+        !target.closest('[data-radix-popper-content-wrapper]')
+      ) {
         setIsMobileMenuOpen(false);
       }
     };
@@ -82,7 +87,8 @@ export default function Navbar({
 
   // removed unused toggleMobileMenu
 
-  const NavLinks = () => (
+  // Son elementos JSX y no componentes definidos dentro de Navbar: así React no los desmonta en cada render
+  const navLinks = (
     <>
       <Link
         href="/"
@@ -138,20 +144,19 @@ export default function Navbar({
         <Layers className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Combinations</span>
       </Link>
+      <Link
+        href="/explore"
+        className="inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 border-transparent text-base lg:text-lg font-medium text-foreground/70 hover:border-foreground/50 hover:text-foreground transition-all duration-300 ease-out"
+      >
+        <Compass className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
+        <span>Explore</span>
+      </Link>
     </>
   );
 
-  const ControlButtons = () => (
+  const controlButtons = (
     <div className="flex items-center space-x-1 lg:space-x-4">
-      <button
-        onClick={() => setShowSortMenu(true)}
-        aria-label="Sort"
-        title="Sort"
-        className="inline-flex items-center justify-center px-2 lg:px-4 py-2 rounded-md text-base lg:text-lg font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors duration-200"
-      >
-        <ArrowUpDown className="h-5 w-5 lg:h-6 lg:w-6 lg:mr-2" />
-        <span className="hidden lg:inline">Sort</span>
-      </button>
+      <SortMenu value={currentSort} onChange={onSortChange} />
       {user ? (
         <button
           onClick={onProfileClick}
@@ -199,12 +204,12 @@ export default function Navbar({
 
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center space-x-2 lg:space-x-6">
-              <NavLinks />
+              {navLinks}
             </div>
 
             {/* Desktop Controls */}
             <div className="hidden md:flex items-center md:justify-self-end">
-              <ControlButtons />
+              {controlButtons}
             </div>
 
             {/* Mobile menu button */}
@@ -232,19 +237,13 @@ export default function Navbar({
             <div className="flex flex-col space-y-2">
               {/* Mobile Nav Links */}
               <div className="flex flex-col space-y-1">
-                <NavLinks />
+                {navLinks}
               </div>
             </div>
             {/* Mobile Controls */}
             <div className="pt-2 border-t border-border/50">
               <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setShowSortMenu(true)}
-                  className="inline-flex items-center justify-center px-3 py-2 rounded-md text-base font-medium text-foreground/80 hover:text-foreground hover:bg-accent/50 transition-colors"
-                >
-                  <ArrowUpDown className="h-5 w-5 mr-2" />
-                  <span>Sort</span>
-                </button>
+                <SortMenu value={currentSort} onChange={onSortChange} variant="full" />
                 <button
                   disabled={authLoading && !user}
                   onClick={user ? onProfileClick : onLoginClick}
@@ -262,39 +261,6 @@ export default function Navbar({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Sort Menu Dialog */}
-      {showSortMenu && (
-        <Dialog open={showSortMenu} onOpenChange={setShowSortMenu}>
-          <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-sm border-border/10">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-serif">Sort by</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-2">
-              {[
-                { value: 'date', label: 'Date Added' },
-                { value: 'genre', label: 'Genre' },
-                { value: 'username', label: 'Uploader' }
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    onSortChange(option.value);
-                    setShowSortMenu(false);
-                  }}
-                  className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-200 text-base ${
-                    currentSort === option.value
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </DialogContent>
-        </Dialog>
       )}
 
       {/* Theme Menu Dialog */}
