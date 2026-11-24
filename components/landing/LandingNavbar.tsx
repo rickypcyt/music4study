@@ -30,42 +30,41 @@ export default function LandingNavbar({ onSignIn, busy }: LandingNavbarProps) {
           Music4Study
         </a>
 
-        <ul className="hidden items-center gap-1 md:flex lg:gap-3">
+        <ul className="hidden items-center gap-1 lg:flex xl:gap-3">
           {LINKS.map((l) => (
             <li key={l.href}>
-              <a href={l.href} className="rounded-md px-3 py-2 text-base lg:text-lg text-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground">
+              <a href={l.href} className="whitespace-nowrap rounded-md px-3 py-2 text-lg text-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground">
                 {l.label}
               </a>
             </li>
           ))}
         </ul>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <button
             onClick={onSignIn}
             disabled={busy}
-            className="rounded-md px-3 py-2 text-base lg:text-lg text-foreground/80 transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-60"
+            className="hidden whitespace-nowrap rounded-md px-3 py-2 text-lg text-foreground/80 transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-60 lg:inline-block"
           >
             Sign in
           </button>
-          <Button onClick={onSignIn} disabled={busy} className="bg-primary px-4 text-base lg:text-lg text-primary-foreground hover:bg-primary/90">
+          <Button onClick={onSignIn} disabled={busy} className="hidden whitespace-nowrap bg-primary px-4 text-base text-primary-foreground hover:bg-primary/90 md:inline-flex lg:text-lg">
             {busy ? 'Redirecting…' : 'Get started'}
           </Button>
+          <button
+            className="inline-flex items-center justify-center rounded-md p-2 text-foreground hover:bg-accent/40 lg:hidden"
+            aria-label={open ? 'Close menu' : 'Open menu'}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
         </div>
-
-        <button
-          className="inline-flex items-center justify-center rounded-md p-2 text-foreground hover:bg-accent/40 md:hidden"
-          aria-label={open ? 'Close menu' : 'Open menu'}
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
       </nav>
 
       {open && (
-        <div className="border-t border-foreground/10 bg-background/95 px-4 py-3 md:hidden">
-          <ul className="space-y-1">
+        <div className="border-t border-foreground/10 bg-background/95 px-4 py-3 lg:hidden">
+          <ul className="grid gap-1 md:grid-cols-2">
             {LINKS.map((l) => (
               <li key={l.href}>
                 <a href={l.href} onClick={() => setOpen(false)} className="block rounded-md px-3 py-2 text-lg text-foreground/80 hover:bg-accent/40 hover:text-foreground">
@@ -74,7 +73,7 @@ export default function LandingNavbar({ onSignIn, busy }: LandingNavbarProps) {
               </li>
             ))}
           </ul>
-          <Button onClick={onSignIn} disabled={busy} className="mt-3 w-full bg-primary text-lg text-primary-foreground hover:bg-primary/90">
+          <Button onClick={onSignIn} disabled={busy} className="mt-3 w-full bg-primary text-lg md:hidden text-primary-foreground hover:bg-primary/90">
             {busy ? 'Redirecting…' : 'Sign in with Google'}
           </Button>
         </div>
