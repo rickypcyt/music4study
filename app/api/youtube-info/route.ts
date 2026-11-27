@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (!videoId || !VIDEO_ID.test(videoId)) {
     return NextResponse.json({ error: 'videoId inválido' }, { status: 400 });
   }
-  if (!allow(request, 'youtube-info', 60)) {
+  if (!(await allow(request, 'youtube-info', 60))) {
     return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
   }
 

@@ -5,6 +5,7 @@ import { desc, eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { revalidateTag } from 'next/cache';
 import { userStatsTag } from '@/lib/userStats';
+import { createCombinationSchema, parseBody } from '@/lib/schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +15,15 @@ export async function GET(request: Request) {
     // Solo las combinaciones de la cuenta con sesión; sin sesión no hay nada que mostrar
     const session = await getSession(request);
     if (!session?.user) return NextResponse.json([]);
-    const combos = await db
-      .select()
-      .from(combinations)
-      .where(eq(combinations.userId, session.user.id))
-      .orderBy(desc(combinations.createdAt));
-    const rel = await db
-      .select({ combinationId: combinationLinks.combinationId, link: links })
-      .from(combinationLinks)
-      .innerJoin(links, eq(links.id, combinationLinks.linkId))
-      .where(eq(links.userId, session.user.id));
+    // En paralelo: con neon-http cada consulta es un viaje de red aparte
+    const [combos, rel] = await Promise.all([
+      db.select().from(combinations).where(eq(combinations.userId, session.user.id)).orderBy(desc(combinations.createdAt)),
+      db
+        .select({ combinationId: combinationLinks.combinationId, link: links })
+        .from(combinationLinks)
+        .innerJoin(links, eq(links.id, combinationLinks.linkId))
+        .where(eq(links.userId, session.user.id)),
+    ]);
 
     const byCombo = new Map<string, ReturnType<typeof serializeLink>[]>();
     for (const r of rel) {
@@ -52,9 +52,9 @@ export async function POST(request: Request) {
     const session = await getSession(request);
     if (!session?.user) return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 });
 
-    const body = await request.json();
-    const name = typeof body?.name === 'string' ? body.name.trim().slice(0, 100) : '';
-    if (!name) return NextResponse.json({ error: 'name requerido' }, { status: 400 });
+    const parsed = await parseBody(request, createCombinationSchema);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const { name } = parsed.data;
     const [row] = await db.insert(combinations).values({ name, userId: session.user.id }).returning();
     revalidateTag(userStatsTag(session.user.id));
     return NextResponse.json({ id: row.id, name: row.name, created_at: row.createdAt.toISOString() }, { status: 201 });

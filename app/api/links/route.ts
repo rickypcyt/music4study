@@ -5,6 +5,7 @@ import { and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { revalidateTag } from 'next/cache';
 import { userStatsTag } from '@/lib/userStats';
+import { createLinkSchema, idListSchema, parseBody } from '@/lib/schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,9 @@ export async function GET(request: Request) {
 
     const ids = params.get('ids');
     if (ids) {
-      const rows = await db.select().from(links).where(and(inArray(links.id, ids.split(',').filter(Boolean)), visible));
+      const parsedIds = idListSchema.safeParse(ids);
+      if (!parsedIds.success) return NextResponse.json({ error: 'id inválido' }, { status: 400 });
+      const rows = await db.select().from(links).where(and(inArray(links.id, parsedIds.data), visible));
       return NextResponse.json(rows.map(serializeLink));
     }
 
@@ -58,11 +61,9 @@ export async function POST(request: Request) {
     const session = await getSession(request);
     if (!session?.user) return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 });
 
-    const body = await request.json();
-    const url = typeof body?.url === 'string' ? body.url.trim() : '';
-    if (!url || url.length > 2000 || !/^https?:\/\//i.test(url)) {
-      return NextResponse.json({ error: 'URL inválida' }, { status: 400 });
-    }
+    const parsed = await parseBody(request, createLinkSchema);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const { url, type, genre, title } = parsed.data;
 
     // Duplicados (sin distinguir mayúsculas). Se escapan % y _ para que ilike sea una comparación exacta.
     const escaped = url.replace(/[\\%_]/g, (c: string) => `\\${c}`);
@@ -72,16 +73,15 @@ export async function POST(request: Request) {
     }
 
     // El link queda asociado a la cuenta con sesión y usa su nombre
-    const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
     const [row] = await db
       .insert(links)
       .values({
         url,
-        type: normalizeType(str(body.type, 50)),
-        genre: str(body.genre, 100),
+        type: normalizeType(type),
+        genre,
         username: (session.user.username ?? session.user.name).slice(0, 100),
         userId: session.user.id,
-        title: str(body.title, 300),
+        title,
         dateAdded: new Date(),
       })
       .returning();

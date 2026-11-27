@@ -9,6 +9,7 @@ import {
 } from "./dialog";
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { MotionConfig, motion } from 'framer-motion';
 
 import { Button } from './button';
 import Link from 'next/link';
@@ -88,7 +89,17 @@ export default function Navbar({
   // removed unused toggleMobileMenu
 
   // Son elementos JSX y no componentes definidos dentro de Navbar: así React no los desmonta en cada render
-  const navLinks = (
+  // `indicatorId` distinto en escritorio y móvil: dos elementos con el mismo layoutId se pelearían la animación
+  const indicator = (indicatorId: string) => (
+    <motion.span
+      layoutId={indicatorId}
+      aria-hidden
+      className="absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-primary"
+      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+    />
+  );
+
+  const renderNavLinks = (indicatorId: string) => (
     <>
       <Link
         href="/"
@@ -99,14 +110,15 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`relative inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-colors duration-300 ease-out ${
           currentView === 'home'
-            ? 'border-primary text-foreground'
+            ? 'border-transparent text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Home className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Home</span>
+        {currentView === 'home' && indicator(indicatorId)}
       </Link>
       <Link
         href="/"
@@ -117,14 +129,15 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`relative inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-colors duration-300 ease-out ${
           currentView === 'genres'
-            ? 'border-primary text-foreground'
+            ? 'border-transparent text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Tags className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Genres</span>
+        {currentView === 'genres' && indicator(indicatorId)}
       </Link>
       <Link
         href="/"
@@ -135,14 +148,15 @@ export default function Navbar({
             setIsMobileMenuOpen(false);
           });
         }}
-        className={`inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-all duration-300 ease-out ${
+        className={`relative inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 text-base lg:text-lg font-medium transition-colors duration-300 ease-out ${
           currentView === 'combinations'
-            ? 'border-primary text-foreground'
+            ? 'border-transparent text-foreground'
             : 'border-transparent text-foreground/70 hover:border-foreground/50 hover:text-foreground'
         } ${isNavigating ? 'opacity-70' : ''}`}
       >
         <Layers className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Combinations</span>
+        {currentView === 'combinations' && indicator(indicatorId)}
       </Link>
       <Link
         href="/explore"
@@ -203,9 +217,12 @@ export default function Navbar({
             </div>
 
             {/* Desktop Nav Links */}
-            <div className="hidden md:flex items-center space-x-2 lg:space-x-6">
-              {navLinks}
-            </div>
+            {/* layoutRoot: la barra es sticky; así el indicador no "vuela" si cambia el scroll */}
+            <MotionConfig reducedMotion="user">
+              <motion.div layoutRoot className="hidden md:flex items-center space-x-2 lg:space-x-6">
+                {renderNavLinks('nav-indicator-desktop')}
+              </motion.div>
+            </MotionConfig>
 
             {/* Desktop Controls */}
             <div className="hidden md:flex items-center md:justify-self-end">
@@ -237,7 +254,7 @@ export default function Navbar({
             <div className="flex flex-col space-y-2">
               {/* Mobile Nav Links */}
               <div className="flex flex-col space-y-1">
-                {navLinks}
+                <MotionConfig reducedMotion="user">{renderNavLinks('nav-indicator-mobile')}</MotionConfig>
               </div>
             </div>
             {/* Mobile Controls */}

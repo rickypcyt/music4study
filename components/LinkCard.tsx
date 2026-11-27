@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { memo, useEffect, useRef, useState } from "react";
+import { ExternalLink } from "lucide-react";
 
 import CachedEmbed from './embeds/CachedEmbed';
 import { extractYouTubeId } from "./embeds/LazyYouTubeEmbed";
@@ -24,6 +25,7 @@ interface LinkCardProps {
   link: Link;
   onRemoved?: (id: string) => void;
   index?: number; // Index in the grid for priority loading
+  compact?: boolean; // Tarjeta más baja y sin autor (vista de combinaciones)
 }
 
 // Función para formatear la fecha
@@ -47,7 +49,7 @@ const isValidTitle = (title: string | undefined | null): boolean => {
 
 
 
-function LinkCard({ link, onRemoved, index }: LinkCardProps) {
+function LinkCard({ link, onRemoved, index, compact = false }: LinkCardProps) {
   const [youtubeTitle, setYoutubeTitle] = useState<string | null>(null);
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -103,83 +105,111 @@ function LinkCard({ link, onRemoved, index }: LinkCardProps) {
 
   const isCurrentlyPlaying = Boolean(isPlaying && currentVideoId && currentVideoId === extractVideoId(link.url));
 
+  const platform = isYouTube ? 'YouTube' : isSpotify ? 'Spotify' : isSoundCloud ? 'SoundCloud' : null;
+  const hasTitle = Boolean(displayTitle && displayTitle.trim());
+
   return (
       <Card
-        className={`overflow-hidden relative group flex flex-col ${
-          'min-h-[400px]'
-        } ${
-          isCurrentlyPlaying ? '!border-2 !border-primary/80' : ''
-        }`}
         ref={cardRef}
+        className={`group relative flex h-full flex-col overflow-hidden rounded-xl border bg-card/60 transition-[border-color,box-shadow,background-color] duration-300 ease-out hover:bg-card hover:shadow-[0_12px_32px_-12px_hsl(var(--primary)/0.35)] ${
+          isCurrentlyPlaying
+            ? 'border-primary/70 shadow-[0_0_0_1px_hsl(var(--primary)/0.5),0_12px_32px_-12px_hsl(var(--primary)/0.45)]'
+            : 'border-foreground/10 hover:border-primary/40'
+        }`}
       >
-        <CardContent className="p-2 flex flex-col flex-1">
-          {(isSpotify || isYouTube || isSoundCloud) ? (
-            <div className="w-full">
-          <CachedEmbed 
+        <CardContent className="flex flex-1 flex-col p-0">
+          {platform ? (
+            <div className="relative w-full overflow-hidden">
+              <CachedEmbed
                 url={link.url}
                 linkId={link.id}
                 initialTitle={link.title || ''}
                 priority={index !== undefined && index < 8} // Priority for first 8 images (LCP)
-                onLoad={() => {
-                  // You can add any additional logic here when the embed loads
+                className="[&>div]:!rounded-none"
+                onError={async () => {
+                  toast({
+                    title: "Error",
+                    description: "Failed to load embed. You can still open the link in a new tab.",
+                    variant: "destructive",
+                  });
                 }}
-            onError={async () => {
-              toast({
-                title: "Error",
-                description: "Failed to load embed. You can still open the link in a new tab.",
-                variant: "destructive",
-              });
-            }}
-            onUnavailable={() => {
-              // Remover del estado superior cuando YouTube esté no disponible
-              onRemoved?.(link.id);
-              toast({
-                title: "Removed",
-                description: "Unavailable YouTube video was removed.",
-              });
-            }}
-            onTitleFetched={(title) => {
-              if (isYouTube) {
-                setYoutubeTitle(title);
-              }
-            }}
+                onUnavailable={() => {
+                  // Remover del estado superior cuando YouTube esté no disponible
+                  onRemoved?.(link.id);
+                  toast({
+                    title: "Removed",
+                    description: "Unavailable YouTube video was removed.",
+                  });
+                }}
+                onTitleFetched={(title) => {
+                  if (isYouTube) setYoutubeTitle(title);
+                }}
               />
+              {isCurrentlyPlaying && (
+                <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1 text-sm font-medium text-white backdrop-blur-sm">
+                  <span aria-hidden className="flex h-3 items-end gap-[2px]">
+                    <span className="m4s-eq-bar !w-[3px]" />
+                    <span className="m4s-eq-bar !w-[3px] [animation-delay:-0.3s]" />
+                    <span className="m4s-eq-bar !w-[3px] [animation-delay:-0.6s]" />
+                  </span>
+                  Now playing
+                </div>
+              )}
             </div>
           ) : (
-            <div className="w-full aspect-video bg-gray-100 flex items-center justify-center text-gray-500">
+            <div className="flex aspect-video w-full items-center justify-center bg-foreground/5 text-foreground/50">
               Unsupported URL format
             </div>
           )}
-          <div className="p-4 space-y-3 flex flex-col flex-1">
-            {/* Show title for all videos, including YouTube */}
-            {displayTitle && displayTitle.trim() && (
-              <div className="flex-shrink-0">
-                <h3 className="text-lg text-[#e6e2d9] line-clamp-2 leading-tight font-semibold">
+
+          {/* Estilo "video": avatar a la izquierda; título, autor y datos a la derecha */}
+          <div className={`flex flex-1 gap-3 ${compact ? 'p-3' : 'p-4'}`}>
+            {!compact && link.username && (
+              <span
+                aria-hidden
+                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-sm font-semibold uppercase text-foreground/70"
+              >
+                {link.username.charAt(0)}
+              </span>
+            )}
+
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              {hasTitle ? (
+                <h3
+                  title={displayTitle}
+                  className={`line-clamp-2 font-semibold leading-snug text-foreground ${compact ? 'text-base' : 'text-lg'}`}
+                >
                   {displayTitle}
                 </h3>
-              </div>
-            )}
-            
-            {/* Spacer that pushes footer to bottom */}
-            <div className="flex-1 min-h-0"></div>
-            
-            {/* Footer - always at bottom */}
-            <div className="flex-shrink-0 flex items-center justify-between pt-2 border-t border-[#e6e2d9]/10">
-              <div className="flex flex-col items-start">
-                <span className="text-base text-[#e6e2d9]/50">{formatDate(link.date_added)}</span>
-                <span className="text-base text-[#e6e2d9]/70">by {link.username}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center space-x-2">
-                  <span className="px-3 py-1 text-base font-medium bg-indigo-500/10 text-indigo-400 rounded-full">
-                    {link.genre}
-                  </span>
-                  <span className="px-3 py-1 text-base font-medium bg-[#e6e2d9]/10 text-[#e6e2d9]/70 rounded-full">
-                    {link.type}
-                  </span>
+              ) : (
+                // Título aún cargando: reserva su sitio para que la tarjeta no salte
+                <div className="space-y-2 py-1" aria-hidden>
+                  <div className="m4s-shimmer h-4 w-11/12 rounded" />
+                  <div className="m4s-shimmer h-4 w-2/3 rounded" />
                 </div>
-              </div>
+              )}
+
+              {!compact && link.username && (
+                <p className="truncate text-sm text-foreground/70">{link.username}</p>
+              )}
+
+              <p className="truncate text-sm text-foreground/50">
+                {[link.genre, link.type].filter(Boolean).join(' · ')}
+                {(link.genre || link.type) && ' · '}
+                <time dateTime={link.date_added}>{formatDate(link.date_added)}</time>
+              </p>
             </div>
+
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Open on ${platform ?? 'source site'}`}
+              title={`Open on ${platform ?? 'source site'}`}
+              className="-mr-1 h-fit shrink-0 rounded-md p-1.5 text-foreground/40 transition hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
           </div>
         </CardContent>
       </Card>
@@ -196,6 +226,9 @@ export default memo(LinkCard, (prevProps, nextProps) => {
     prevProps.link.genre === nextProps.link.genre &&
     prevProps.link.type === nextProps.link.type &&
     prevProps.link.username === nextProps.link.username &&
-    prevProps.link.date_added === nextProps.link.date_added
+    prevProps.link.date_added === nextProps.link.date_added &&
+    prevProps.compact === nextProps.compact &&
+    prevProps.index === nextProps.index &&
+    prevProps.onRemoved === nextProps.onRemoved
   );
 }); 

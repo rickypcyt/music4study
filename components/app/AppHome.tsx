@@ -9,7 +9,9 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import CurrentlyPlayingFloating from '@/components/ui/CurrentlyPlayingFloating';
 import { Input } from '@/components/ui/input';
+import CombinationSection from '@/components/combinations/CombinationSection';
 import LinkCard from '@/components/LinkCard';
+import { Skeleton } from '@/components/ui/skeleton';
 import LoadingCards from '@/components/ui/LoadingCards';
 import Navbar from '@/components/ui/Navbar';
 import PasswordDialog from '@/components/ui/PasswordDialog';
@@ -82,6 +84,7 @@ interface LinksCache {
 }
 
 type ViewType = 'home' | 'genres' | 'combinations';
+
 type SortType = 'date' | 'genre' | 'username';
 
 // ============================================
@@ -237,6 +240,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
   const [isCreateCombinationModalOpen, setIsCreateCombinationModalOpen] = useState(false);
   const [newCombinationName, setNewCombinationName] = useState('');
   const [combinations, setCombinations] = useState<CombinationWithLinks[]>([]);
+  const [combinationsLoading, setCombinationsLoading] = useState(true);
   const [currentSort, setCurrentSort] = useState<SortType>(() => getInitialSort(effectiveSearchParams));
   useEffect(() => {
     try {
@@ -438,7 +442,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
 
   const fetchCombinations = useCallback(async () => {
     try {
-      setLoading(true);
+      setCombinationsLoading(true);
       
       const { data: combinationsData, error: combinationsError } = await fetchCombinationsApi();
 
@@ -454,7 +458,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setCombinationsLoading(false);
     }
   }, [toast]);
 
@@ -727,12 +731,16 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     }
   }, [effectiveSearchParams]);
 
-  // Fetch combinations when in combinations view
+  // Precarga las combinaciones en cuanto hay sesión, para que la vista ya esté lista al abrirla
   useEffect(() => {
-    if (currentView === 'combinations' && combinations.length === 0) {
+    if (isSessionPending) return;
+    setCombinations([]);
+    if (sessionUserId) {
       fetchCombinations();
+    } else {
+      setCombinationsLoading(false);
     }
-  }, [currentView, fetchCombinations, combinations.length]);
+  }, [isSessionPending, sessionUserId, fetchCombinations]);
 
   // ============================================
   // RENDER
@@ -775,7 +783,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
       
       <main className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 flex-1 flex flex-col">
           {/* Genres view — always mounted, hidden when not active */}
-          <div className={currentView === 'genres' ? 'flex-1 flex flex-col gap-6 pb-4' : 'hidden'}>
+          <div className={currentView === 'genres' ? `flex-1 flex flex-col gap-6 pb-4 m4s-view` : 'hidden'}>
             <div className="text-center">
               <h1 className="text-5xl font-serif text-[#e6e2d9] mb-4 tracking-wide">Genres</h1>
               <p className="text-[#e6e2d9]/70 max-w-3xl mx-auto text-lg leading-relaxed">
@@ -790,7 +798,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
           </div>
           {/* Combinations view — solo se monta cuando está activa */}
           {currentView === 'combinations' && (
-            <div className="space-y-8">
+            <div className={`space-y-8 m4s-view`}>
               <div className="text-center space-y-2 pt-6">
                 <h2 className="text-5xl font-serif text-foreground">Combinations</h2>
                 <p className="text-foreground/70 text-lg max-w-3xl mx-auto">
@@ -806,25 +814,18 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
                 </Button>
               </div>
               <div className="space-y-8">
-                {combinations.length === 0 && !loading ? (
+                {combinations.length === 0 && combinationsLoading ? (
+                  <div className="grid gap-2 grid-cols-1 md:grid-cols-2 lg:grid-cols-4" aria-busy="true" aria-label="Loading combinations">
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <Skeleton key={i} className="min-h-[400px] w-full" />
+                    ))}
+                  </div>
+                ) : combinations.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-foreground/70">No combinations yet. Create your first one!</p>
                   </div>
                 ) : (
-                  combinations.map((combination) => (
-                    <div key={combination.id} className="space-y-4 p-6 border border-foreground/10 rounded-lg">
-                      <h3 className="text-2xl font-serif text-foreground">{combination.name}</h3>
-                      {combination.links.length > 0 ? (
-                        <SimpleGrid
-                          items={combination.links}
-                          renderItem={(link: Link) => <LinkCard key={`combo-${combination.id}-${link.id}`} link={link} />}
-                          columns={4}
-                        />
-                      ) : (
-                        <p className="text-foreground/70">No tracks in this combination yet.</p>
-                      )}
-                    </div>
-                  ))
+                  combinations.map((combination) => <CombinationSection key={combination.id} combination={combination} />)
                 )}
               </div>
             </div>
@@ -834,7 +835,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
           <div
             aria-hidden={currentView !== 'home'}
             className={currentView === 'home'
-              ? 'flex-1 flex flex-col'
+              ? `flex-1 flex flex-col m4s-view-fade`
               : 'fixed top-0 left-[-200vw] w-screen h-screen overflow-hidden pointer-events-none'}
           >
               {/* Biblioteca vacía (con sesión) */}
@@ -889,7 +890,7 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
             Formulario para enviar un nuevo enlace de música
           </DialogDescription>
           <DialogHeader>
-            <DialogTitle>Submit Track</DialogTitle>
+            <DialogTitle className="text-2xl font-semibold tracking-tight">Add a track</DialogTitle>
           </DialogHeader>
           <SubmitForm 
             onClose={() => setIsSubmitModalOpen(false)} 

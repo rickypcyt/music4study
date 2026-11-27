@@ -15,7 +15,7 @@ const VIDEO_ID = /^[A-Za-z0-9_-]{6,15}$/;
  * de datos desde el servidor, así el cliente no tiene que pedirlos uno a uno ni gastar más cuota.
  */
 export async function GET(request: Request) {
-  if (!allow(request, 'youtube-batch', 20)) {
+  if (!(await allow(request, 'youtube-batch', 20))) {
     return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
   }
 

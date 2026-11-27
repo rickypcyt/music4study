@@ -3,17 +3,18 @@ import { db } from '@/db';
 import { eq } from 'drizzle-orm';
 import { getSession } from '@/lib/auth';
 import { user } from '@/db/auth-schema';
+import { parseBody, setUsernameSchema, usernameSchema } from '@/lib/schemas';
 
 export const dynamic = 'force-dynamic';
 
-const USERNAME = /^[a-z0-9_]{3,24}$/;
 // Nombres que no se pueden usar porque chocarían con rutas o suplantarían a la plataforma
 const RESERVED = new Set(['admin', 'api', 'auth', 'login', 'logout', 'me', 'u', 'user', 'users', 'settings', 'profile', 'music4study', 'support', 'root', 'null', 'undefined']);
 
 /** GET /api/me/username?u=nombre -> { available } (para validar mientras se escribe) */
 export async function GET(request: Request) {
-  const u = (new URL(request.url).searchParams.get('u') ?? '').toLowerCase();
-  if (!USERNAME.test(u) || RESERVED.has(u)) return NextResponse.json({ available: false });
+  const parsed = usernameSchema.safeParse(new URL(request.url).searchParams.get('u'));
+  if (!parsed.success || RESERVED.has(parsed.data)) return NextResponse.json({ available: false });
+  const u = parsed.data;
   const [row] = await db.select({ id: user.id }).from(user).where(eq(user.username, u)).limit(1);
   return NextResponse.json({ available: !row });
 }
@@ -25,11 +26,9 @@ export async function POST(request: Request) {
     if (!session?.user) return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 });
     if (session.user.username) return NextResponse.json({ error: 'Ya tienes un username' }, { status: 409 });
 
-    const body = await request.json().catch(() => null);
-    const username = typeof body?.username === 'string' ? body.username.trim().toLowerCase() : '';
-    if (!USERNAME.test(username)) {
-      return NextResponse.json({ error: 'Usa 3 a 24 caracteres: letras, números o _' }, { status: 400 });
-    }
+    const parsed = await parseBody(request, setUsernameSchema);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const { username } = parsed.data;
     if (RESERVED.has(username)) return NextResponse.json({ error: 'Ese nombre no está disponible' }, { status: 400 });
 
     try {

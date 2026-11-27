@@ -6,6 +6,7 @@ import { extractYouTubeId } from '@/lib/youtubeId';
 import { allow } from '@/lib/rateLimit';
 import { getVideo } from '@/lib/youtubeApi';
 import { getSession } from '@/lib/auth';
+import { parseBody, updateLinkSchema } from '@/lib/schemas';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1);
     if (!row) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
-    if (!allow(request, 'link-patch', 60)) return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
+    if (!(await allow(request, 'link-patch', 60))) return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
 
     const videoId = extractYouTubeId(row.url);
     let title = '';
@@ -53,9 +54,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const session = await getSession(request);
       if (!session?.user) return NextResponse.json({ error: 'Debes iniciar sesión' }, { status: 401 });
       if (row.userId !== session.user.id) return NextResponse.json({ error: 'No es tu link' }, { status: 403 });
-      const body = await request.json().catch(() => null);
-      title = typeof body?.title === 'string' ? body.title.trim().slice(0, 300) : '';
-      if (!title) return NextResponse.json({ error: 'title requerido' }, { status: 400 });
+      const parsed = await parseBody(request, updateLinkSchema);
+      if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+      title = parsed.data.title;
     }
 
     const [updated] = await db.update(links).set({ title }).where(eq(links.id, id)).returning();

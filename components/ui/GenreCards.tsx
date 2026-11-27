@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -55,7 +55,7 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
   };
 
   return (
-    <div className={cn('space-y-3 rounded-md', hasError && 'ring-1 ring-destructive p-2')}>
+    <div className={cn('space-y-3 rounded-md', hasError && 'outline outline-1 outline-offset-4 outline-destructive')}>
       {genres.length > VISIBLE_BY_DEFAULT && (
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/50" />
@@ -65,12 +65,12 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
             onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
             placeholder="Search genres"
             aria-label="Search genres"
-            className="h-10 w-full rounded-md border border-border/40 bg-background/70 pl-9 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
+            className="h-10 w-full rounded-md border border-foreground/15 bg-transparent pl-9 pr-3 text-base text-foreground placeholder:text-foreground/30 focus-visible:outline-none focus:border-foreground/40"
           />
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Genre">
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Genre">
         {visible.map((g) => {
           const selected = g.value === value;
           return (
@@ -81,22 +81,21 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
               aria-checked={selected}
               onClick={() => onChange(selected ? '' : g.value)}
               className={cn(
-                'flex items-center gap-1.5 sm:gap-2 rounded-lg border px-2.5 py-1.5 sm:px-3 sm:py-2 text-base transition-colors',
+                'flex items-baseline gap-1.5 rounded-md border px-3 py-1.5 text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 selected
-                  ? 'border-primary bg-primary/20 text-foreground'
-                  : 'border-border/40 bg-background/40 text-foreground/80 hover:border-foreground/40 hover:bg-accent/40 hover:text-foreground',
+                  ? 'border-foreground bg-foreground text-background'
+                  : 'border-foreground/15 text-foreground/75 hover:border-foreground/40 hover:text-foreground',
               )}
             >
-              {selected && <Check className="h-4 w-4 text-primary" />}
               <span>{g.value}</span>
-              <span className="text-foreground/40">{g.count}</span>
+              <span className={cn('text-sm tabular-nums', selected ? 'text-background/60' : 'text-foreground/35')}>{g.count}</span>
             </button>
           );
         })}
 
         {/* Género nuevo */}
         {creating ? (
-          <div className="flex items-center gap-1 rounded-lg border border-primary/60 bg-background/60 pl-3 pr-1">
+          <div className="flex items-center rounded-md border border-foreground pl-3">
             <input
               autoFocus
               value={draft}
@@ -115,12 +114,12 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
               }}
               placeholder="New genre"
               aria-label="New genre name"
-              className="w-32 bg-transparent py-2 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none"
+              className="w-32 !border-0 !bg-transparent py-1.5 text-base text-foreground !shadow-none outline-none placeholder:text-foreground/30"
             />
-            <button type="button" onClick={submitDraft} disabled={draft.trim().length < 2} aria-label="Add genre" className="rounded p-1.5 text-primary disabled:opacity-40 hover:bg-accent/40">
-              <Check className="h-4 w-4" />
+            <button type="button" onClick={submitDraft} disabled={draft.trim().length < 2} className="px-2 text-sm font-medium text-foreground disabled:opacity-30">
+              Add
             </button>
-            <button type="button" onClick={() => { setCreating(false); setDraft(''); }} aria-label="Cancel" className="rounded p-1.5 text-foreground/60 hover:bg-accent/40">
+            <button type="button" onClick={() => { setCreating(false); setDraft(''); }} aria-label="Cancel" className="pr-2 text-foreground/50 hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -128,7 +127,7 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="flex items-center gap-1 rounded-lg border border-dashed border-border/60 px-3 py-2 text-base text-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground"
+            className="flex items-center gap-1 rounded-md px-3 py-1.5 text-base text-foreground/50 transition-colors hover:text-foreground"
           >
             <Plus className="h-4 w-4" /> New
           </button>
@@ -136,11 +135,11 @@ export default function GenreCards({ genres, value, onChange, hasError }: GenreC
       </div>
 
       {!q && filtered.length > VISIBLE_BY_DEFAULT && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="text-base text-primary hover:underline">
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="text-sm text-foreground/50 underline-offset-4 hover:text-foreground hover:underline">
           {showAll ? 'Show fewer' : `Show all (${hidden > 0 ? `${hidden} more` : filtered.length})`}
         </button>
       )}
-      {q && filtered.length === 0 && <p className="text-foreground/60">No genres match “{query}”. Use “New” to create it.</p>}
+      {q && filtered.length === 0 && <p className="text-sm text-foreground/50">No genres match “{query}”. Use “New” to create it.</p>}
     </div>
   );
 }

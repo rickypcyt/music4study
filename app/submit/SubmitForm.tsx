@@ -1,7 +1,7 @@
 'use client';
 
 import YouTubeThumb from '@/components/YouTubeThumb';
-import { ClipboardPaste, Loader2, X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -136,7 +136,7 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
             }
             if (error) throw new Error(error.message);
 
-            toast({ title: '¡Éxito!', description: 'El enlace se ha añadido correctamente.' });
+            toast({ title: 'Added', description: 'The track is in your library.' });
             if (data && onNewLinkAdded) onNewLinkAdded(data);
             onSuccess();
             onClose();
@@ -153,163 +153,196 @@ const SubmitForm: React.FC<SubmitFormProps> = ({ onClose, genres: initialGenres,
     };
 
     const showUrlError = touched && urlError;
+    const label = 'block text-sm font-medium text-foreground/60';
+    const choice = (active: boolean) =>
+        cn(
+            'rounded-md border px-3 py-1.5 text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            active
+                ? 'border-foreground bg-foreground text-background'
+                : 'border-foreground/15 text-foreground/75 hover:border-foreground/40 hover:text-foreground',
+        );
 
     return (
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-col gap-4" noValidate>
-            {/* Los campos hacen scroll dentro del modal; el botón queda siempre visible abajo */}
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-1 -mx-1 pb-1">
-            {/* LINK */}
-            <div className="space-y-2">
-                <label htmlFor="submit-url" className="text-base font-medium text-foreground">Link</label>
-                <div className="flex items-center gap-2">
-                    <Input
-                        id="submit-url"
-                        ref={urlRef}
-                        autoFocus
-                        inputMode="url"
-                        placeholder="https://…"
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        onBlur={() => url && setTouched(true)}
-                        aria-invalid={Boolean(showUrlError)}
+        <form
+            onSubmit={handleSubmit}
+            // Ctrl/Cmd + Enter envía desde cualquier campo
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit(e);
+            }}
+            className="flex min-h-0 flex-col"
+            noValidate
+        >
+            {/* Los campos hacen scroll dentro del modal; el pie queda siempre visible abajo */}
+            <div className="-mx-1 min-h-0 flex-1 space-y-7 overflow-y-auto overscroll-contain px-1 pb-2">
+                {/* LINK */}
+                <div className="space-y-3">
+                    <label htmlFor="submit-url" className={label}>Link</label>
+                    <div
                         className={cn(
-                            'bg-background/70 border-border/40 text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary',
-                            showUrlError && 'border-destructive',
-                        )}
-                    />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={paste}
-                        title="Paste from clipboard"
-                        aria-label="Paste from clipboard"
-                        className="h-11 w-11 shrink-0 p-0 rounded-md border-border/40 text-foreground/80 hover:text-foreground hover:bg-accent/40"
-                    >
-                        <ClipboardPaste className="h-5 w-5" />
-                    </Button>
-                </div>
-
-                {showUrlError ? (
-                    <p className="text-destructive">{urlError}</p>
-                ) : platform ? (
-                    <div className="flex items-center gap-3 rounded-md border border-border/40 bg-background/50 p-2">
-                        {videoId && (
-                            <YouTubeThumb videoId={videoId} className="h-14 w-24 shrink-0 rounded object-cover bg-muted" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                            <p className="text-primary font-medium">{PLATFORM_LABEL[platform]}</p>
-                            {preview.status === 'loading' ? (
-                                <p className="flex items-center gap-2 text-foreground/60"><Loader2 className="h-4 w-4 animate-spin" /> Checking…</p>
-                            ) : preview.status === 'ok' ? (
-                                <>
-                                    <p className="truncate text-foreground">{preview.title}</p>
-                                    {preview.channel && <p className="truncate text-foreground/60">{preview.channel}</p>}
-                                </>
-                            ) : (
-                                <p className="text-foreground/60">Link detected</p>
-                            )}
-                        </div>
-                    </div>
-                ) : null}
-            </div>
-
-            {/* TYPE */}
-            <div className="space-y-2">
-                <span className="text-base font-medium text-foreground">Type</span>
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Type">
-                    {TYPE_OPTIONS.map((t) => (
-                        <button
-                            key={t}
-                            type="button"
-                            role="radio"
-                            aria-checked={!customType && type === t}
-                            onClick={() => {
-                                setCustomType(false);
-                                setType(t);
-                            }}
-                            className={cn(
-                                'rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 text-base transition-colors',
-                                !customType && type === t
-                                    ? 'border-primary bg-primary/20 text-foreground'
-                                    : 'border-border/40 text-foreground/80 hover:bg-accent/40 hover:text-foreground',
-                            )}
-                        >
-                            {t}
-                        </button>
-                    ))}
-                    <button
-                        type="button"
-                        role="radio"
-                        aria-checked={customType}
-                        onClick={() => {
-                            setCustomType(true);
-                            setType('');
-                        }}
-                        className={cn(
-                            'rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 text-base transition-colors',
-                            customType ? 'border-primary bg-primary/20 text-foreground' : 'border-dashed border-border/60 text-foreground/70 hover:bg-accent/40 hover:text-foreground',
+                            'flex items-center gap-2 border-b-2 transition-colors focus-within:border-primary',
+                            showUrlError ? 'border-destructive' : 'border-foreground/15',
                         )}
                     >
-                        Other…
-                    </button>
-                </div>
-                {customType && (
-                    <div className="flex items-center gap-2">
-                        <Input
+                        <input
+                            id="submit-url"
+                            ref={urlRef}
                             autoFocus
-                            placeholder="e.g. Podcast"
-                            maxLength={30}
-                            value={type}
-                            onChange={(e) => setType(e.target.value)}
-                            className="bg-background/70 border-border/40 text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus:border-primary"
+                            inputMode="url"
+                            autoComplete="off"
+                            spellCheck={false}
+                            placeholder="youtube.com/watch?v=…"
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            onBlur={() => url && setTouched(true)}
+                            aria-invalid={Boolean(showUrlError)}
+                            aria-describedby="submit-url-help"
+                            className="min-w-0 flex-1 !border-0 !bg-transparent py-2 text-lg text-foreground !shadow-none outline-none placeholder:text-foreground/30"
                         />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => {
-                                setCustomType(false);
-                                setType('');
-                            }}
-                            aria-label="Cancel custom type"
-                            className="h-11 w-11 shrink-0 p-0 rounded-md border-border/40"
-                        >
-                            <X className="h-5 w-5" />
-                        </Button>
+                        {url ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setUrl('');
+                                    setTouched(false);
+                                    urlRef.current?.focus();
+                                }}
+                                aria-label="Clear link"
+                                className="p-1 text-foreground/40 hover:text-foreground"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        ) : (
+                            <button type="button" onClick={paste} className="text-sm font-medium text-foreground/50 hover:text-foreground">
+                                Paste
+                            </button>
+                        )}
                     </div>
-                )}
-                {touched && typeError && <p className="text-destructive">{typeError}</p>}
+
+                    <div id="submit-url-help" aria-live="polite">
+                        {showUrlError ? (
+                            <p className="text-sm text-destructive">{urlError}</p>
+                        ) : platform ? (
+                            <div className="flex items-center gap-3">
+                                {videoId && (
+                                    <YouTubeThumb videoId={videoId} className="aspect-video w-28 shrink-0 rounded bg-muted object-cover" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    {preview.status === 'loading' ? (
+                                        <>
+                                            <div className="m4s-shimmer mb-2 h-4 w-3/4 rounded" />
+                                            <div className="m4s-shimmer h-3 w-1/3 rounded" />
+                                        </>
+                                    ) : preview.status === 'ok' ? (
+                                        <>
+                                            <p className="line-clamp-2 font-medium leading-snug text-foreground">{preview.title}</p>
+                                            <p className="truncate text-sm text-foreground/50">
+                                                {preview.channel ? `${preview.channel} · ` : ''}
+                                                {PLATFORM_LABEL[platform]}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-foreground/50">{PLATFORM_LABEL[platform]} link</p>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-foreground/40">YouTube, Spotify or SoundCloud</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* TYPE */}
+                <div className="space-y-3">
+                    <span id="submit-type" className={label}>Type</span>
+                    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-labelledby="submit-type">
+                        {TYPE_OPTIONS.map((t) => (
+                            <button
+                                key={t}
+                                type="button"
+                                role="radio"
+                                aria-checked={!customType && type === t}
+                                onClick={() => {
+                                    setCustomType(false);
+                                    setType(t);
+                                }}
+                                className={choice(!customType && type === t)}
+                            >
+                                {t}
+                            </button>
+                        ))}
+                        {customType ? (
+                            <div className="flex items-center rounded-md border border-foreground pl-3">
+                                <input
+                                    autoFocus
+                                    placeholder="Podcast"
+                                    maxLength={30}
+                                    value={type}
+                                    onChange={(e) => setType(e.target.value)}
+                                    aria-label="Custom type"
+                                    className="w-28 !border-0 !bg-transparent py-1.5 text-base text-foreground !shadow-none outline-none placeholder:text-foreground/30"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCustomType(false);
+                                        setType('');
+                                    }}
+                                    aria-label="Cancel custom type"
+                                    className="px-2 text-foreground/50 hover:text-foreground"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                role="radio"
+                                aria-checked={false}
+                                onClick={() => {
+                                    setCustomType(true);
+                                    setType('');
+                                }}
+                                className="rounded-md px-3 py-1.5 text-base text-foreground/50 hover:text-foreground"
+                            >
+                                Other
+                            </button>
+                        )}
+                    </div>
+                    {touched && typeError && <p className="text-sm text-destructive">{typeError}</p>}
+                </div>
+
+                {/* GENRE */}
+                <div className="space-y-3">
+                    <span className={label}>Genre</span>
+                    <GenreCards
+                        genres={genres}
+                        value={genre}
+                        hasError={Boolean(touched && genreError)}
+                        onChange={(g) => {
+                            // Género nuevo: se añade a la lista local para poder reutilizarlo
+                            if (g && !genres.some((x) => x.value.toLowerCase() === g.toLowerCase())) {
+                                setGenres((prev) => [...prev, { value: g, count: 1 }]);
+                            }
+                            setGenre(g);
+                        }}
+                    />
+                    {touched && genreError && <p className="text-sm text-destructive">{genreError}</p>}
+                </div>
             </div>
 
-            {/* GENRE */}
-            <div className="space-y-2">
-                <span className="text-base font-medium text-foreground">Genre</span>
-                <GenreCards
-                    genres={genres}
-                    value={genre}
-                    hasError={Boolean(touched && genreError)}
-                    onChange={(g) => {
-                        // Género nuevo: se añade a la lista local para poder reutilizarlo
-                        if (g && !genres.some((x) => x.value.toLowerCase() === g.toLowerCase())) {
-                            setGenres((prev) => [...prev, { value: g, count: 1 }]);
-                        }
-                        setGenre(g);
-                    }}
-                />
-                {touched && genreError && <p className="text-destructive">{genreError}</p>}
+            <div className="mt-2 flex items-center justify-end gap-3 border-t border-foreground/10 pt-4">
+                <span className="mr-auto hidden text-sm text-foreground/40 sm:inline">Ctrl + Enter</span>
+                <Button type="button" variant="ghost" onClick={onClose} className="text-foreground/70">
+                    Cancel
+                </Button>
+                <Button
+                    type="submit"
+                    disabled={loading || (touched && !isValid)}
+                    className="min-w-[7.5rem] bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-label="Adding" /> : 'Add track'}
+                </Button>
             </div>
-            </div>
-
-            <Button
-                type="submit"
-                disabled={loading || (touched && !isValid)}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-3 transition-all duration-200 hover:shadow-lg hover:shadow-primary/25"
-            >
-                {loading ? (
-                    <span className="flex items-center justify-center gap-2"><Loader2 className="h-5 w-5 animate-spin" /> Sharing…</span>
-                ) : (
-                    'Share Music'
-                )}
-            </Button>
         </form>
     );
 };

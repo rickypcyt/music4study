@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseBody, verifyUploadSchema } from '@/lib/schemas';
+import { allow } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
   try {
-    const { password } = await request.json();
-    
+    // 5 intentos por minuto e IP, para frenar la fuerza bruta
+    if (!(await allow(request, 'verify-upload', 5))) {
+      return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 });
+    }
+
     const correctPassword = process.env.UPLOAD_PASSWORD;
     
     if (!correctPassword) {
@@ -13,7 +18,10 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    if (password !== correctPassword) {
+    const parsed = await parseBody(request, verifyUploadSchema);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+
+    if (parsed.data.password !== correctPassword) {
       return NextResponse.json(
         { error: 'Clave incorrecta' },
         { status: 401 }

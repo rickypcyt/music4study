@@ -22,7 +22,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1);
     if (!row) return NextResponse.json({ removed: true }); // ya no existe
 
-    if (!allow(_req, 'link-remove', 30)) return NextResponse.json({ removed: false, reason: 'demasiadas peticiones' }, { status: 429 });
+    if (!(await allow(_req, 'link-remove', 30))) return NextResponse.json({ removed: false, reason: 'demasiadas peticiones' }, { status: 429 });
 
     const videoId = extractYouTubeId(row.url);
     if (!videoId) return NextResponse.json({ removed: false, reason: 'no verificable' });
