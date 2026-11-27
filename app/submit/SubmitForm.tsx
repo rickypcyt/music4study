@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import GenreCards from '@/components/ui/GenreCards';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { createLink } from '@/lib/dataApi';
 import { extractYouTubeId } from '@/lib/youtubeId';
