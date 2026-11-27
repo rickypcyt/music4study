@@ -704,6 +704,16 @@ function HomeContent({ searchParams: initialSearchParams }: HomeContentProps) {
     fetchLinksData(false).finally(() => setLoading(false));
   }, [isSessionPending, sessionUserId, fetchLinksData]);
 
+  // ?submit=1 (llegando desde Explore con "Submit"): abre el formulario y limpia la URL
+  useEffect(() => {
+    if (searchParams.get('submit') !== '1' || isSessionPending) return;
+    if (session?.user) setIsSubmitModalOpen(true);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('submit');
+    const qs = params.toString();
+    replaceUrl(qs ? `/?${qs}` : '/');
+  }, [searchParams, isSessionPending, session?.user]);
+
   // Update view from search params
   useEffect(() => {
     const view = searchParams.get('view');

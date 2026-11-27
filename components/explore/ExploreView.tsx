@@ -1,9 +1,12 @@
 'use client';
 
-import Link from 'next/link';
-import type { ExploreData } from '@/lib/explore';
-import { Search } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
+import type { ExploreCombo, ExploreData, ExploreUser } from '@/lib/explore';
 import { useMemo, useState } from 'react';
+
+import Link from 'next/link';
+import LinkCard from '@/components/LinkCard';
+import { extractYouTubeId } from '@/lib/youtubeId';
 
 function timeAgo(iso: string | null): string {
   if (!iso) return '';
@@ -36,105 +39,169 @@ export function Avatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg'
   );
 }
 
+const PAGE = 6;
+
 export default function ExploreView({ data }: { data: ExploreData }) {
   const [query, setQuery] = useState('');
+  const [shown, setShown] = useState(PAGE);
   const q = query.trim().toLowerCase().replace(/^@/, '');
-  const users = useMemo(() => (q ? data.users.filter((u) => u.username.toLowerCase().includes(q)) : data.users), [data.users, q]);
-  const combos = useMemo(
-    () => (q ? data.combos.filter((c) => c.name.toLowerCase().includes(q) || c.owner.toLowerCase().includes(q) || c.genres.some((g) => g.toLowerCase().includes(q))) : data.combos),
-    [data.combos, q],
-  );
+
+  const users = useMemo(() => {
+    if (!q) return data.users;
+    const has = (v: string | null | undefined) => Boolean(v && v.toLowerCase().includes(q));
+    return data.users.filter(
+      (u) =>
+        has(u.username) ||
+        has(u.topGenre) ||
+        u.combos.some((c) => has(c.name)) ||
+        u.latest.some((l) => has(l.title) || has(l.genre)),
+    );
+  }, [data.users, q]);
+
+  const visible = q ? users : users.slice(0, shown);
 
   return (
-    <div className="space-y-10">
-      <header className="space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-5xl">Explore study music</h1>
-        <p className="max-w-3xl text-lg leading-relaxed text-foreground/70">
-          See what other students are listening to. Open a library to browse and play their tracks, or jump straight into
-          a combination built for a study session.
-        </p>
-        <ul className="flex flex-wrap gap-3 text-base text-foreground/70">
-          <li className="rounded-full border border-foreground/15 px-4 py-1">{data.totals.users.toLocaleString()} members</li>
-          <li className="rounded-full border border-foreground/15 px-4 py-1">{data.totals.tracks.toLocaleString()} tracks</li>
-          <li className="rounded-full border border-foreground/15 px-4 py-1">{data.totals.combinations.toLocaleString()} combinations</li>
-        </ul>
-        <div className="relative max-w-xl">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-foreground/50" />
+    <div className="space-y-12">
+      <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">Explore</h1>
+          <p className="text-foreground/60">
+            {data.totals.users.toLocaleString()} libraries · {data.totals.tracks.toLocaleString()} tracks ·{' '}
+            {data.totals.combinations.toLocaleString()} combinations
+          </p>
+        </div>
+        <div className="relative w-full lg:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/40" />
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people, combinations or genres"
+            placeholder="Search people, tracks or genres"
             aria-label="Search"
-            className="h-12 w-full rounded-md border border-border/40 bg-background/70 pl-10 pr-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus:border-primary"
+            className="h-11 w-full rounded-full border border-foreground/15 bg-foreground/5 pl-10 pr-4 text-base text-foreground placeholder:text-foreground/40 focus-visible:outline-none focus:border-foreground/40"
           />
         </div>
       </header>
 
-      <section aria-labelledby="libraries" className="space-y-4">
-        <h2 id="libraries" className="text-2xl font-bold text-foreground">Libraries</h2>
-        {users.length === 0 ? (
-          <p className="text-base text-foreground/60">{q ? `No one matches “${query}”.` : 'No public libraries yet.'}</p>
-        ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-            {users.map((u) => (
-              <li key={u.username}>
-                <Link
-                  href={`/u/${encodeURIComponent(u.username)}`}
-                  className="group flex items-center gap-4 rounded-xl border border-foreground/10 bg-background/40 p-4 transition-colors hover:border-foreground/30 hover:bg-background/60"
-                >
-                  <Avatar name={u.username} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-lg font-bold text-foreground group-hover:text-primary">@{u.username}</p>
-                    <p className="text-base text-foreground/70">
-                      <span className="font-bold text-foreground">{u.tracks.toLocaleString()}</span> {u.tracks === 1 ? 'track' : 'tracks'}
-                      {u.combinations > 0 && <> · {u.combinations} {u.combinations === 1 ? 'combination' : 'combinations'}</>}
-                    </p>
-                    <p className="truncate text-base text-foreground/50">
-                      {u.topGenre ? `Mostly ${u.topGenre}` : ''}
-                      {u.topGenre && u.lastActive ? ' · ' : ''}
-                      {u.lastActive ? `active ${timeAgo(u.lastActive)}` : ''}
-                    </p>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {visible.length === 0 ? (
+        <p className="text-foreground/60">{q ? `Nothing matches “${query}”.` : 'No public libraries yet.'}</p>
+      ) : (
+        <div className="space-y-14">
+          {visible.map((u) => (
+            <UserShelf key={u.username} user={u} />
+          ))}
+        </div>
+      )}
 
-      <section aria-labelledby="combos" className="space-y-4">
-        <h2 id="combos" className="text-2xl font-bold text-foreground">Combinations</h2>
-        {combos.length === 0 ? (
-          <p className="text-base text-foreground/60">{q ? `No combinations match “${query}”.` : 'No public combinations yet.'}</p>
-        ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {combos.map((c) => (
+      {!q && users.length > shown && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShown((n) => n + PAGE)}
+            className="rounded-full border border-foreground/20 px-6 py-2.5 text-base font-medium text-foreground/80 transition-colors hover:border-foreground/50 hover:text-foreground"
+          >
+            Show more libraries
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Una biblioteca: cabecera con el usuario, sus 4 últimos tracks y hasta 4 combinaciones. */
+function UserShelf({ user: u }: { user: ExploreUser }) {
+  const href = `/u/${encodeURIComponent(u.username)}`;
+  const headingId = `shelf-${u.username}`;
+
+  return (
+    <section aria-labelledby={headingId} className="space-y-6">
+      <header className="flex items-center gap-4">
+        <Link href={href} tabIndex={-1} aria-hidden>
+          <Avatar name={u.username} />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h2 id={headingId} className="truncate text-2xl font-bold tracking-tight text-foreground">
+            <Link href={href} className="hover:underline">@{u.username}</Link>
+          </h2>
+          <p className="truncate text-sm text-foreground/55">
+            {u.tracks.toLocaleString()} {u.tracks === 1 ? 'track' : 'tracks'}
+            {u.combinations > 0 && ` · ${u.combinations} ${u.combinations === 1 ? 'combination' : 'combinations'}`}
+            {u.topGenre && ` · Mostly ${u.topGenre}`}
+            {u.lastActive && ` · Active ${timeAgo(u.lastActive)}`}
+          </p>
+        </div>
+        <Link
+          href={href}
+          className="hidden shrink-0 items-center gap-1 text-sm font-semibold text-foreground/60 hover:text-foreground sm:inline-flex"
+        >
+          Show all <ChevronRight className="h-4 w-4" />
+        </Link>
+      </header>
+
+      {u.latest.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-foreground/60">Latest uploads</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {u.latest.map((link) => (
+              <LinkCard key={link.id} link={link} compact />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {u.combos.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-foreground/60">Combinations</h3>
+          <ul className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {u.combos.map((c) => (
               <li key={c.id}>
-                <Link
-                  href={`/combinations/${c.id}`}
-                  className="group flex h-full flex-col gap-3 rounded-xl border border-foreground/10 bg-background/40 p-5 transition-colors hover:border-foreground/30 hover:bg-background/60"
-                >
-                  <div>
-                    <p className="line-clamp-2 text-xl font-bold leading-snug text-foreground group-hover:text-primary">{c.name}</p>
-                    <p className="text-base text-foreground/60">by @{c.owner}</p>
-                  </div>
-                  <p className="text-base text-foreground/80">
-                    <span className="font-bold text-foreground">{c.tracks}</span> {c.tracks === 1 ? 'track' : 'tracks'}
-                  </p>
-                  {c.genres.length > 0 && (
-                    <ul className="mt-auto flex flex-wrap gap-2">
-                      {c.genres.map((g) => (
-                        <li key={g} className="rounded-full bg-primary/15 px-3 py-0.5 text-base text-foreground/90">{g}</li>
-                      ))}
-                    </ul>
-                  )}
-                </Link>
+                <ComboTile combo={c} />
               </li>
             ))}
           </ul>
-        )}
-      </section>
-    </div>
+        </div>
+      )}
+
+      {/* En móvil el enlace de la cabecera está oculto */}
+      <Link href={href} className="inline-flex items-center gap-1 text-sm font-semibold text-foreground/60 hover:text-foreground sm:hidden">
+        Open @{u.username}&apos;s library <ChevronRight className="h-4 w-4" />
+      </Link>
+    </section>
+  );
+}
+
+/** Combinación con portada en mosaico de sus primeros tracks, como una playlist. */
+function ComboTile({ combo }: { combo: ExploreCombo }) {
+  const covers = combo.covers.slice(0, 4);
+  const mosaic = covers.length >= 4;
+
+  return (
+    <Link href={`/combinations/${combo.id}`} className="group block space-y-2">
+      <div className={`grid aspect-square overflow-hidden rounded-lg bg-foreground/10 ${mosaic ? 'grid-cols-2' : ''}`}>
+        {(mosaic ? covers : covers.slice(0, 1)).map((url, i) => (
+          <Cover key={i} url={url} />
+        ))}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate font-semibold text-foreground group-hover:underline">{combo.name}</p>
+        <p className="text-sm text-foreground/55">
+          {combo.tracks} {combo.tracks === 1 ? 'track' : 'tracks'}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function Cover({ url }: { url: string }) {
+  const id = extractYouTubeId(url);
+  if (id) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={`https://i.ytimg.com/vi/${id}/mqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover" />
+    );
+  }
+  const label = url.includes('spotify.com') ? 'Spotify' : url.includes('soundcloud.com') ? 'SoundCloud' : '♪';
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-primary/20 text-sm font-semibold text-foreground/70">{label}</div>
   );
 }

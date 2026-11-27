@@ -3,7 +3,6 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
-import PageTransition from '@/components/ui/PageTransition';
 import PerformanceMonitor from '@/components/ui/PerformanceMonitor';
 import ResourcePreloader from '@/components/ResourcePreloader';
 import SpotifyScript from '@/components/embeds/SpotifyScript';
@@ -131,9 +130,8 @@ export default function RootLayout({
       )}>
           <ClientProvider>
             <Suspense fallback={<div className="min-h-screen" aria-hidden="true" />}>
-              <PageTransition>
-                {children}
-              </PageTransition>
+              {/* Sin transición global de página: cada vista anima solo su contenido (m4s-view) y la barra no se mueve */}
+              {children}
             </Suspense>
           </ClientProvider>
         <Toaster />

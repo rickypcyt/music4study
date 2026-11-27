@@ -111,10 +111,10 @@ function LinkCard({ link, onRemoved, index, compact = false }: LinkCardProps) {
   return (
       <Card
         ref={cardRef}
-        className={`group relative flex h-full flex-col overflow-hidden rounded-xl border bg-card/60 transition-[border-color,box-shadow,background-color] duration-300 ease-out hover:bg-card hover:shadow-[0_12px_32px_-12px_hsl(var(--primary)/0.35)] ${
+        className={`group relative flex h-full flex-col overflow-hidden rounded-xl border bg-card/60 ${
           isCurrentlyPlaying
             ? 'border-primary/70 shadow-[0_0_0_1px_hsl(var(--primary)/0.5),0_12px_32px_-12px_hsl(var(--primary)/0.45)]'
-            : 'border-foreground/10 hover:border-primary/40'
+            : 'border-foreground/10'
         }`}
       >
         <CardContent className="flex flex-1 flex-col p-0">
@@ -162,54 +162,55 @@ function LinkCard({ link, onRemoved, index, compact = false }: LinkCardProps) {
             </div>
           )}
 
-          {/* Estilo "video": avatar a la izquierda; título, autor y datos a la derecha */}
-          <div className={`flex flex-1 gap-3 ${compact ? 'p-3' : 'p-4'}`}>
-            {!compact && link.username && (
-              <span
-                aria-hidden
-                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-sm font-semibold uppercase text-foreground/70"
-              >
-                {link.username.charAt(0)}
-              </span>
-            )}
-
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className={`flex flex-1 flex-col gap-3 ${compact ? 'p-3' : 'p-4'}`}>
+            <div className="flex items-start gap-2">
               {hasTitle ? (
                 <h3
                   title={displayTitle}
-                  className={`line-clamp-2 font-semibold leading-snug text-foreground ${compact ? 'text-base' : 'text-lg'}`}
+                  className={`line-clamp-2 flex-1 font-semibold leading-snug text-foreground ${compact ? 'text-base' : 'text-lg'}`}
                 >
                   {displayTitle}
                 </h3>
               ) : (
                 // Título aún cargando: reserva su sitio para que la tarjeta no salte
-                <div className="space-y-2 py-1" aria-hidden>
+                <div className="flex-1 space-y-2 pt-1" aria-hidden>
                   <div className="m4s-shimmer h-4 w-11/12 rounded" />
                   <div className="m4s-shimmer h-4 w-2/3 rounded" />
                 </div>
               )}
-
-              {!compact && link.username && (
-                <p className="truncate text-sm text-foreground/70">{link.username}</p>
-              )}
-
-              <p className="truncate text-sm text-foreground/50">
-                {[link.genre, link.type].filter(Boolean).join(' · ')}
-                {(link.genre || link.type) && ' · '}
-                <time dateTime={link.date_added}>{formatDate(link.date_added)}</time>
-              </p>
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open on ${platform ?? 'source site'}`}
+                title={`Open on ${platform ?? 'source site'}`}
+                className="-mr-1 shrink-0 rounded-md p-1.5 text-foreground/40 transition-colors hover:text-foreground"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
             </div>
 
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Open on ${platform ?? 'source site'}`}
-              title={`Open on ${platform ?? 'source site'}`}
-              className="-mr-1 h-fit shrink-0 rounded-md p-1.5 text-foreground/40 transition hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </a>
+            <div className="flex flex-wrap items-center gap-1.5 text-sm">
+              {link.genre && (
+                <span className="rounded-full bg-primary/15 px-2.5 py-0.5 font-medium text-primary">{link.genre}</span>
+              )}
+              {link.type && (
+                <span className="rounded-full bg-foreground/10 px-2.5 py-0.5 text-foreground/70">{link.type}</span>
+              )}
+            </div>
+
+            <div className="mt-auto flex items-center gap-2 border-t border-foreground/10 pt-3 text-sm text-foreground/50">
+              {!compact && link.username && (
+                <>
+                  <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-foreground/10 text-xs font-semibold uppercase text-foreground/70">
+                    {link.username.charAt(0)}
+                  </span>
+                  <span className="min-w-0 truncate text-foreground/70">{link.username}</span>
+                  <span aria-hidden>·</span>
+                </>
+              )}
+              <time dateTime={link.date_added} className="shrink-0">{formatDate(link.date_added)}</time>
+            </div>
           </div>
         </CardContent>
       </Card>

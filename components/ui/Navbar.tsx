@@ -16,7 +16,7 @@ import Link from 'next/link';
 import SortMenu from './SortMenu';
 
 interface NavbarProps {
-  currentView: 'home' | 'genres' | 'combinations';
+  currentView: 'home' | 'genres' | 'combinations' | 'explore';
   onGenresClick: () => void;
   onHomeClick: () => void;
   onSubmitClick: () => void;
@@ -26,10 +26,11 @@ interface NavbarProps {
   authLoading?: boolean;
   onLoginClick?: () => void;
   onProfileClick?: () => void;
-  onSortChange: (sort: string) => void;
-  currentSort: string;
-  onThemeChange: (theme: string) => void;
-  currentTheme: string;
+  /** Sin onSortChange no se muestra el menú de orden (p. ej. en Explore, donde no hay biblioteca que ordenar) */
+  onSortChange?: (sort: string) => void;
+  currentSort?: string;
+  onThemeChange?: (theme: string) => void;
+  currentTheme?: string;
 }
 
 export default function Navbar({
@@ -160,17 +161,22 @@ export default function Navbar({
       </Link>
       <Link
         href="/explore"
-        className="inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 border-transparent text-base lg:text-lg font-medium text-foreground/70 hover:border-foreground/50 hover:text-foreground transition-all duration-300 ease-out"
+        aria-current={currentView === 'explore' ? 'page' : undefined}
+        onClick={() => setIsMobileMenuOpen(false)}
+        className={`relative inline-flex items-center px-1 lg:px-2 pt-1 pb-2 border-b-2 border-transparent text-base lg:text-lg font-medium transition-colors duration-300 ease-out ${
+          currentView === 'explore' ? 'text-foreground' : 'text-foreground/70 hover:border-foreground/50 hover:text-foreground'
+        }`}
       >
         <Compass className="h-5 w-5 lg:h-6 lg:w-6 mr-1 lg:mr-2" />
         <span>Explore</span>
+        {currentView === 'explore' && indicator(indicatorId)}
       </Link>
     </>
   );
 
   const controlButtons = (
     <div className="flex items-center space-x-1 lg:space-x-4">
-      <SortMenu value={currentSort} onChange={onSortChange} />
+      {onSortChange && <SortMenu value={currentSort ?? 'date'} onChange={onSortChange} />}
       {user ? (
         <button
           onClick={onProfileClick}
@@ -219,7 +225,7 @@ export default function Navbar({
             {/* Desktop Nav Links */}
             {/* layoutRoot: la barra es sticky; así el indicador no "vuela" si cambia el scroll */}
             <MotionConfig reducedMotion="user">
-              <motion.div layoutRoot className="hidden md:flex items-center space-x-2 lg:space-x-6">
+              <motion.div layoutRoot className="hidden md:flex items-center gap-4 lg:gap-10 xl:gap-14">
                 {renderNavLinks('nav-indicator-desktop')}
               </motion.div>
             </MotionConfig>
@@ -260,7 +266,7 @@ export default function Navbar({
             {/* Mobile Controls */}
             <div className="pt-2 border-t border-border/50">
               <div className="flex items-center justify-between">
-                <SortMenu value={currentSort} onChange={onSortChange} variant="full" />
+                {onSortChange ? <SortMenu value={currentSort ?? 'date'} onChange={onSortChange} variant="full" /> : <span />}
                 <button
                   disabled={authLoading && !user}
                   onClick={user ? onProfileClick : onLoginClick}
@@ -299,7 +305,7 @@ export default function Navbar({
                 <button
                   key={theme.id}
                   onClick={() => {
-                    onThemeChange(theme.id);
+                    onThemeChange?.(theme.id);
                     setShowThemeMenu(false);
                   }}
                   className={`w-full px-4 py-3 text-left rounded-md transition-colors duration-200 text-base flex items-center ${

@@ -22,16 +22,18 @@ async function queryUserStats(userId: string): Promise<UserStats> {
       (select count(*) from combinations where user_id = ${userId})::int as combos,
       coalesce((
         select json_agg(t) from (
-          select genre as name, count(*)::int as count from links
-          where user_id = ${userId} and genre is not null and genre <> ''
-          group by genre order by count(*) desc limit 5
+          -- Sin distinguir mayúsculas; se muestra la variante más usada
+          select mode() within group (order by genre) as name, count(*)::int as count from links
+          where user_id = ${userId} and genre is not null and trim(genre) <> ''
+          group by lower(trim(genre)) order by count(*) desc limit 5
         ) t
       ), '[]'::json) as top_genres,
       coalesce((
         select json_agg(t) from (
-          select type as name, count(*)::int as count from links
-          where user_id = ${userId} and type is not null and type <> ''
-          group by type order by count(*) desc
+          -- 'mix' / 'MIX' -> 'Mix', igual que al guardar un link nuevo
+          select initcap(lower(trim(type))) as name, count(*)::int as count from links
+          where user_id = ${userId} and type is not null and trim(type) <> ''
+          group by 1 order by count(*) desc
         ) t
       ), '[]'::json) as platforms
   `);

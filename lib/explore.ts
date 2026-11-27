@@ -21,33 +21,37 @@ export interface PublicLink {
   is_public: boolean;
 }
 
+export interface ExploreCombo {
+  id: string;
+  name: string;
+  tracks: number;
+  /** URLs de hasta 4 tracks, para la portada en mosaico */
+  covers: string[];
+}
+
 export interface ExploreUser {
   username: string;
   tracks: number;
   combinations: number;
   topGenre: string | null;
   lastActive: string | null;
-}
-
-export interface ExploreCombo {
-  id: string;
-  name: string;
-  owner: string;
-  tracks: number;
-  genres: string[];
-  createdAt: string;
+  /** Los 4 últimos tracks públicos */
+  latest: PublicLink[];
+  /** Hasta 4 combinaciones públicas con tracks, las más recientes */
+  combos: ExploreCombo[];
 }
 
 export interface ExploreData {
   users: ExploreUser[];
-  combos: ExploreCombo[];
   totals: { users: number; tracks: number; combinations: number };
 }
 
 const rowsOf = <T,>(result: unknown) => (result as { rows: T[] }).rows;
 
+type LatestRow = { id: string; url: string; title: string | null; genre: string | null; type: string | null; date_added: string | null };
+
 async function queryExplore(): Promise<ExploreData> {
-  const [usersRes, combosRes, totalsRes] = await Promise.all([
+  const [usersRes, totalsRes] = await Promise.all([
     db.execute(sql`
       select * from (
         select u.username,
@@ -55,32 +59,39 @@ async function queryExplore(): Promise<ExploreData> {
           (select count(*) from combinations c where c.user_id = u.id and c.is_public)::int as combos,
           (select l.genre from links l where l.user_id = u.id and l.is_public and coalesce(l.genre, '') <> ''
              group by l.genre order by count(*) desc limit 1) as top_genre,
-          (select max(l.date_added) from links l where l.user_id = u.id and l.is_public) as last_active
+          (select max(l.date_added) from links l where l.user_id = u.id and l.is_public) as last_active,
+          coalesce((
+            select json_agg(t) from (
+              select l.id, l.url, l.title, l.genre, l.type, l.date_added from links l
+              where l.user_id = u.id and l.is_public
+              order by l.date_added desc nulls last limit 4
+            ) t
+          ), '[]'::json) as latest,
+          coalesce((
+            select json_agg(c) from (
+              select c.id, c.name,
+                (select count(*) from combination_links cl join links l on l.id = cl.link_id
+                   where cl.combination_id = c.id and l.is_public)::int as tracks,
+                coalesce((
+                  select json_agg(x.url) from (
+                    select l.url from combination_links cl join links l on l.id = cl.link_id
+                    where cl.combination_id = c.id and l.is_public
+                    order by cl.created_at limit 4
+                  ) x
+                ), '[]'::json) as covers
+              from combinations c
+              where c.user_id = u.id and c.is_public
+                and exists (select 1 from combination_links cl join links l on l.id = cl.link_id
+                            where cl.combination_id = c.id and l.is_public)
+              order by c.created_at desc limit 4
+            ) c
+          ), '[]'::json) as combo_list
         from "user" u
         where u.username is not null
       ) x
       where x.tracks > 0 or x.combos > 0
-      order by x.tracks desc, x.last_active desc nulls last
-      limit 60
-    `),
-    db.execute(sql`
-      select c.id, c.name, u.username as owner, c.created_at,
-        (select count(*) from combination_links cl join links l on l.id = cl.link_id
-           where cl.combination_id = c.id and l.is_public)::int as tracks,
-        coalesce((
-          select json_agg(g.genre) from (
-            select l.genre from combination_links cl join links l on l.id = cl.link_id
-            where cl.combination_id = c.id and l.is_public and coalesce(l.genre, '') <> ''
-            group by l.genre order by count(*) desc limit 3
-          ) g
-        ), '[]'::json) as genres
-      from combinations c
-      join "user" u on u.id = c.user_id
-      where c.is_public and u.username is not null
-        and exists (select 1 from combination_links cl join links l on l.id = cl.link_id
-                    where cl.combination_id = c.id and l.is_public)
-      order by c.created_at desc
-      limit 24
+      order by x.last_active desc nulls last, x.tracks desc
+      limit 30
     `),
     db.execute(sql`
       select
@@ -91,21 +102,29 @@ async function queryExplore(): Promise<ExploreData> {
   ]);
 
   const t = rowsOf<{ users: number; tracks: number; combos: number }>(totalsRes)[0];
+  type UserRow = {
+    username: string; tracks: number; combos: number; top_genre: string | null; last_active: string | null;
+    latest: LatestRow[]; combo_list: ExploreCombo[];
+  };
   return {
-    users: rowsOf<{ username: string; tracks: number; combos: number; top_genre: string | null; last_active: string | null }>(usersRes).map((r) => ({
+    users: rowsOf<UserRow>(usersRes).map((r) => ({
       username: r.username,
       tracks: r.tracks,
       combinations: r.combos,
       topGenre: r.top_genre,
       lastActive: r.last_active ? new Date(r.last_active).toISOString() : null,
-    })),
-    combos: rowsOf<{ id: string; name: string; owner: string; created_at: string; tracks: number; genres: string[] }>(combosRes).map((r) => ({
-      id: r.id,
-      name: r.name,
-      owner: r.owner,
-      tracks: r.tracks,
-      genres: r.genres,
-      createdAt: new Date(r.created_at).toISOString(),
+      latest: r.latest.map((l) => ({
+        id: l.id,
+        url: l.url,
+        title: l.title ?? '',
+        genre: l.genre ?? '',
+        type: l.type ?? '',
+        username: r.username,
+        date_added: l.date_added ? new Date(l.date_added).toISOString() : new Date(0).toISOString(),
+        user_id: null, // nunca se expone el id interno
+        is_public: true,
+      })),
+      combos: r.combo_list,
     })),
     totals: { users: t?.users ?? 0, tracks: t?.tracks ?? 0, combinations: t?.combos ?? 0 },
   };
